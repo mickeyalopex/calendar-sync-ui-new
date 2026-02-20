@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alopex Calendar Sync</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">📅</span>
+                <span class="logo-text">Alopex Calendar Sync</span>
+            </div>
+            <div id="user-info" class="user-info hidden">
+                <img id="user-avatar" class="avatar" src="" alt="User">
+                <span id="user-name"></span>
+                <button id="sign-out-btn" class="btn btn-small btn-secondary">Sign Out</button>
+            </div>
+        </header>
+        <main class="main">
+            <section id="step-signin" class="step">
+                <div class="step-header">
+                    <span class="step-number">1</span>
+                    <h2>Sign in with your work account</h2>
+                </div>
+                <div class="step-content signin-content">
+                    <p>Use your <strong>@alopex.digital</strong> Google account to get started.</p>
+                    <div id="google-signin-btn"></div>
+                    <p class="hint">Only @alopex.digital accounts can use this application.</p>
+                </div>
+            </section>
+            <div id="config-sections" class="hidden">
+                <section id="step-calendars" class="step">
+                    <div class="step-header">
+                        <span class="step-number">2</span>
+                        <h2>Your Calendars</h2>
+                    </div>
+                    <div class="step-content">
+                        <div class="calendar-section">
+                            <h3>Work Calendar</h3>
+                            <div id="work-calendar" class="calendar-item work">
+                                <span class="calendar-icon">💼</span>
+                                <span class="calendar-email" id="work-calendar-email">Loading...</span>
+                                <span class="calendar-badge">Auto-detected</span>
+                            </div>
+                        </div>
+                        <div class="calendar-section">
+                            <h3>External Calendars</h3>
+                            <p class="section-hint">Add your personal, school, or other calendars to sync.</p>
+                            <div id="external-calendars-list" class="calendars-list"></div>
+                            <button id="add-calendar-btn" class="btn btn-secondary"><span>+</span> Add External Calendar</button>
+                        </div>
+                        <div id="add-calendar-modal" class="modal hidden">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add External Calendar</h3>
+                                    <button class="modal-close">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="instructions">
+                                        <h4>Step 1: Share your calendar</h4>
+                                        <ol>
+                                            <li>Open <a href="https://calendar.google.com" target="_blank">Google Calendar</a></li>
+                                            <li>Find your calendar in the left sidebar</li>
+                                            <li>Click the 3 dots → "Settings and sharing"</li>
+                                            <li>Under "Share with specific people", click "Add people"</li>
+                                            <li>Enter: <code id="service-account-email">apollo-workspace-mcp@apollo-484901.iam.gserviceaccount.com</code> <button class="btn-copy" onclick="copyServiceAccount()">Copy</button></li>
+                                            <li>Set permission to "See all event details"</li>
+                                            <li>Click "Send"</li>
+                                        </ol>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="calendar-email">Calendar Email/ID:</label>
+                                        <input type="email" id="calendar-email" placeholder="yourname@gmail.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="calendar-name">Display Name:</label>
+                                        <input type="text" id="calendar-name" placeholder="Personal">
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn btn-secondary modal-cancel">Cancel</button>
+                                    <button id="verify-calendar-btn" class="btn btn-primary">Verify & Add</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="step-rules" class="step">
+                    <div class="step-header">
+                        <span class="step-number">3</span>
+                        <h2>Sync Rules</h2>
+                    </div>
+                    <div class="step-content">
+                        <p class="section-hint">Configure how events sync between your calendars.</p>
+                        <div id="sync-rules-list" class="rules-list"></div>
+                        <button id="add-rule-btn" class="btn btn-secondary"><span>+</span> Add Sync Rule</button>
+                        <div id="add-rule-modal" class="modal hidden">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h3>Add Sync Rule</h3>
+                                    <button class="modal-close">&times;</button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="form-group">
+                                        <label for="rule-source">From (Source):</label>
+                                        <select id="rule-source"></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="rule-target">To (Target):</label>
+                                        <select id="rule-target"></select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="rule-visibility">Visibility:</label>
+                                        <select id="rule-visibility">
+                                            <option value="censored">Censored (shows "Busy")</option>
+                                            <option value="full">Full (shows event details)</option>
+                                        </select>
+                                        <p class="field-hint"><strong>Censored:</strong> Events appear as "Busy" blocks<br><strong>Full:</strong> Shows complete event details</p>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button class="btn btn-secondary modal-cancel">Cancel</button>
+                                    <button id="create-rule-btn" class="btn btn-primary">Create Rule</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="step-team" class="step">
+                    <div class="step-header">
+                        <span class="step-number">4</span>
+                        <h2>Team Visibility</h2>
+                    </div>
+                    <div class="step-content">
+                        <div class="toggle-option">
+                            <label class="toggle">
+                                <input type="checkbox" id="team-share-toggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <div class="toggle-label">
+                                <strong>Share my work calendar with all team members</strong>
+                                <p>When enabled, your colleagues can see your work schedule.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="step-save" class="step">
+                    <div class="step-content save-section">
+                        <button id="save-btn" class="btn btn-primary btn-large">Save Configuration</button>
+                        <p id="save-status" class="save-status"></p>
+                    </div>
+                </section>
+            </div>
+        </main>
+        <footer class="footer">
+            <p>Alopex Digital © 2026 | <a href="mailto:support@alopex.digital">Need help?</a></p>
+        </footer>
+    </div>
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p id="loading-text">Loading...</p>
+    </div>
+    <div id="toast-container" class="toast-container"></div>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
