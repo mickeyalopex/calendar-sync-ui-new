@@ -1,0 +1,300 @@
+{
+  "name": "CalendarSync_TeamShare",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-sync/team-share",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook: Team Share",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "webhookId": "calendar-sync-team-share"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Users",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "team_share_enabled",
+              "lookupValue": "TRUE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-team-share-users",
+      "name": "Get Team Share Users",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [460, 300],
+      "credentials": {
+        "googleApi": {
+          "id": "CREDENTIAL_ID",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Calendars",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "calendar_type",
+              "lookupValue": "work"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-work-calendars",
+      "name": "Get Work Calendars",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [460, 500],
+      "credentials": {
+        "googleApi": {
+          "id": "CREDENTIAL_ID",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build sharing pairs: each team-share user's calendar shared with all other team members\nconst users = $('Get Team Share Users').all();\nconst workCalendars = $('Get Work Calendars').all();\n\n// Create user-to-calendar map\nconst userCalendarMap = {};\nworkCalendars.forEach(cal => {\n  userCalendarMap[cal.json.user_id] = cal.json.calendar_email;\n});\n\n// Get list of all team member emails (those with team_share enabled)\nconst teamEmails = users.map(u => u.json.email);\n\n// Build sharing jobs\nconst shareJobs = [];\n\nfor (const user of users) {\n  const calendarEmail = userCalendarMap[user.json.user_id];\n  if (!calendarEmail) continue;\n  \n  // Share this user's calendar with all OTHER team members\n  for (const targetEmail of teamEmails) {\n    if (targetEmail === user.json.email) continue; // Don't share with self\n    \n    shareJobs.push({\n      calendar_email: calendarEmail,\n      calendar_owner: user.json.email,\n      share_with: targetEmail,\n      role: 'reader' // Can see event details\n    });\n  }\n}\n\nif (shareJobs.length === 0) {\n  return [{ json: { noJobs: true, message: 'No sharing jobs to process' } }];\n}\n\nreturn shareJobs.map(job => ({ json: job }));"
+      },
+      "id": "build-share-jobs",
+      "name": "Build Share Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-jobs",
+              "leftValue": "={{ $json.noJobs }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-jobs",
+      "name": "Has Share Jobs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/calendar/v3/calendars/{{ encodeURIComponent($json.calendar_email) }}/acl",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"role\": \"reader\",\n  \"scope\": {\n    \"type\": \"user\",\n    \"value\": {{ JSON.stringify($json.share_with) }}\n  }\n}",
+        "options": {}
+      },
+      "id": "set-calendar-acl",
+      "name": "Set Calendar ACL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300],
+      "credentials": {
+        "googleApi": {
+          "id": "CREDENTIAL_ID",
+          "name": "Google Service Account account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Summarize results\nconst results = $input.all();\n\nconst summary = {\n  timestamp: new Date().toISOString(),\n  sharesProcessed: results.length,\n  success: results.filter(r => r.json.id && !r.json.error).length,\n  failed: results.filter(r => r.json.error).length,\n  alreadyShared: results.filter(r => r.json.error?.code === 409).length\n};\n\nreturn [{ json: summary }];"
+      },
+      "id": "summarize-results",
+      "name": "Summarize Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Team sharing updated', ...($json) }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-success",
+      "name": "Respond: Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'No sharing needed', noJobs: true }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-no-jobs",
+      "name": "Respond: No Jobs",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 500]
+    }
+  ],
+  "connections": {
+    "Webhook: Team Share": {
+      "main": [
+        [
+          {
+            "node": "Get Team Share Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Team Share Users": {
+      "main": [
+        [
+          {
+            "node": "Get Work Calendars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Work Calendars": {
+      "main": [
+        [
+          {
+            "node": "Build Share Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Share Jobs": {
+      "main": [
+        [
+          {
+            "node": "Has Share Jobs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Share Jobs?": {
+      "main": [
+        [
+          {
+            "node": "Set Calendar ACL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: No Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Calendar ACL": {
+      "main": [
+        [
+          {
+            "node": "Summarize Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Results": {
+      "main": [
+        [
+          {
+            "node": "Respond: Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}
