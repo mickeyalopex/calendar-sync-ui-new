@@ -1,7 +1,7 @@
 const CONFIG = {
     GOOGLE_CLIENT_ID: '646089044576-go3vc0jjfmt80324aecj9358fof1n0sn.apps.googleusercontent.com',
     ALLOWED_DOMAIN: 'alopex.digital',
-    SERVICE_ACCOUNT_EMAIL: 'apollo-workspace-mcp@apollo-484901.iam.gserviceaccount.com',
+    SERVICE_ACCOUNT_EMAIL: 'n8n-automation@claude-486418.iam.gserviceaccount.com', 
     API_BASE_URL: 'https://n8n.alopex.digital/webhook',
     ENDPOINTS: {
         SAVE_CONFIG: '/calendar-sync/save',
