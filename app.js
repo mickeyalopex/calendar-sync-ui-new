@@ -345,26 +345,16 @@ function renderRules() {
         return;
     }
 
-    // Helper function to find calendar by ID (checks multiple possible ID fields)
-    const findCalendar = (calId) => {
-        return state.calendars.find(c =>
-            c.id === calId ||
-            c.calendar_id === calId ||
-            c.email === calId ||
-            c.calendar_email === calId
-        );
-    };
-
     list.innerHTML = state.rules.map(rule => {
-        const sourceCal = findCalendar(rule.sourceCalId);
-        const targetCal = findCalendar(rule.targetCalId);
+        const sourceCal = state.calendars.find(c => c.id === rule.sourceCalId);
+        const targetCal = state.calendars.find(c => c.id === rule.targetCalId);
 
         return `
             <div class="rule-item" data-id="${rule.id}">
                 <div class="rule-flow">
-                    <span class="rule-calendar">${sourceCal?.name || sourceCal?.calendar_name || 'Unknown'}</span>
+                    <span class="rule-calendar">${sourceCal?.name || 'Unknown'}</span>
                     <span class="rule-arrow">→</span>
-                    <span class="rule-calendar">${targetCal?.name || targetCal?.calendar_name || 'Unknown'}</span>
+                    <span class="rule-calendar">${targetCal?.name || 'Unknown'}</span>
                 </div>
                 <span class="rule-visibility ${rule.visibility}">${rule.visibility}</span>
                 <label class="toggle rule-toggle">
@@ -435,8 +425,6 @@ async function loadUserConfiguration() {
 
         if (response.ok) {
             const config = await response.json();
-            console.log('Server config:', config);
-            console.log('Server rules:', config.rules);
 
             if (config.calendars) {
                 // Find work calendar from server (preserves the ID used in rules)
@@ -446,7 +434,7 @@ async function loadUserConfiguration() {
 
                 // Use server's work calendar ID if available, otherwise keep the new one
                 const workCal = serverWorkCal ? {
-                    id: serverWorkCal.id || serverWorkCal.calendar_id,
+                    id: serverWorkCal.calendar_id || serverWorkCal.id,
                     email: state.user.email,
                     name: 'Work',
                     type: 'work',
@@ -457,9 +445,9 @@ async function loadUserConfiguration() {
                 const externalCalendars = config.calendars
                     .filter(c => c.type === 'external' || c.calendar_type === 'external')
                     .map(c => ({
-                        id: c.id || c.calendar_id,
-                        email: c.email || c.calendar_email,
-                        name: c.name || c.calendar_name,
+                        id: c.calendar_id || c.id,
+                        email: c.calendar_email || c.email,
+                        name: c.calendar_name || c.name,
                         type: 'external',
                         verified: c.verified !== false
                     }));
@@ -468,17 +456,13 @@ async function loadUserConfiguration() {
 
             if (config.rules) {
                 // Map server format (snake_case) to client format (camelCase)
-                state.rules = config.rules.map(r => {
-                    console.log('Mapping rule:', r);
-                    return {
-                        id: r.id || r.rule_id,
-                        sourceCalId: r.sourceCalId || r.source_cal_id,
-                        targetCalId: r.targetCalId || r.target_cal_id,
-                        visibility: r.visibility || 'censored',
-                        enabled: r.enabled === true || r.enabled === 'TRUE' || r.enabled === 'true'
-                    };
-                });
-                console.log('Mapped rules:', state.rules);
+                state.rules = config.rules.map(r => ({
+                    id: r.rule_id || r.id,
+                    sourceCalId: r.source_cal_id || r.sourceCalId,
+                    targetCalId: r.target_cal_id || r.targetCalId,
+                    visibility: r.visibility || 'censored',
+                    enabled: r.enabled === true || r.enabled === 'TRUE' || r.enabled === 'true'
+                }));
             }
 
             if (config.teamShareEnabled !== undefined) {
