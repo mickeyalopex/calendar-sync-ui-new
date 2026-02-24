@@ -8,10 +8,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <div class="container">
+        <!-- Header -->
         <header class="header">
             <div class="logo">
                 <span class="logo-icon">📅</span>
@@ -23,7 +25,10 @@
                 <button id="sign-out-btn" class="btn btn-small btn-secondary">Sign Out</button>
             </div>
         </header>
+
+        <!-- Main Content -->
         <main class="main">
+            <!-- Step 1: Sign In (shown when not authenticated) -->
             <section id="step-signin" class="step">
                 <div class="step-header">
                     <span class="step-number">1</span>
@@ -35,13 +40,17 @@
                     <p class="hint">Only @alopex.digital accounts can use this application.</p>
                 </div>
             </section>
+
+            <!-- Steps 2-5: Configuration (shown when authenticated) -->
             <div id="config-sections" class="hidden">
+                <!-- Step 2: Calendars -->
                 <section id="step-calendars" class="step">
                     <div class="step-header">
                         <span class="step-number">2</span>
                         <h2>Your Calendars</h2>
                     </div>
                     <div class="step-content">
+                        <!-- Work Calendar (auto-detected) -->
                         <div class="calendar-section">
                             <h3>Work Calendar</h3>
                             <div id="work-calendar" class="calendar-item work">
@@ -50,12 +59,22 @@
                                 <span class="calendar-badge">Auto-detected</span>
                             </div>
                         </div>
+
+                        <!-- External Calendars -->
                         <div class="calendar-section">
                             <h3>External Calendars</h3>
                             <p class="section-hint">Add your personal, school, or other calendars to sync.</p>
-                            <div id="external-calendars-list" class="calendars-list"></div>
-                            <button id="add-calendar-btn" class="btn btn-secondary"><span>+</span> Add External Calendar</button>
+
+                            <div id="external-calendars-list" class="calendars-list">
+                                <!-- Populated by JavaScript -->
+                            </div>
+
+                            <button id="add-calendar-btn" class="btn btn-secondary">
+                                <span>+</span> Add External Calendar
+                            </button>
                         </div>
+
+                        <!-- Add Calendar Modal -->
                         <div id="add-calendar-modal" class="modal hidden">
                             <div class="modal-content">
                                 <div class="modal-header">
@@ -64,16 +83,19 @@
                                 </div>
                                 <div class="modal-body">
                                     <div class="instructions">
-                                        <h4>Step 1: Share your calendar</h4>
+                                        <h4>Step 1: Share your calendar with our sync service</h4>
                                         <ol>
-                                            <li>Open <a href="https://calendar.google.com" target="_blank">Google Calendar</a></li>
-                                            <li>Find your calendar in the left sidebar</li>
-                                            <li>Click the 3 dots → "Settings and sharing"</li>
-                                            <li>Under "Share with specific people", click "Add people"</li>
-                                            <li>Enter: <code id="service-account-email">apollo-workspace-mcp@apollo-484901.iam.gserviceaccount.com</code> <button class="btn-copy" onclick="copyServiceAccount()">Copy</button></li>
-                                            <li>Set permission to "See all event details"</li>
+                                            <li>Open <a href="https://calendar.google.com/calendar/u/0/r/settings" target="_blank">Google Calendar Settings</a></li>
+                                            <li>In the left sidebar, click on your calendar name under "Settings for my calendars"</li>
+                                            <li>Scroll to "Share with specific people or groups"</li>
+                                            <li>Click "+ Add people and groups"</li>
+                                            <li>Enter this email: <code id="service-account-email">n8n-automation@claude-486418.iam.gserviceaccount.com</code>
+                                                <button class="btn-copy" onclick="copyServiceAccount()">Copy</button>
+                                            </li>
+                                            <li>Set permission to <strong>"Make changes to events"</strong></li>
                                             <li>Click "Send"</li>
                                         </ol>
+                                        <p class="hint" style="margin-top: 10px;">Note: You also need to share your work calendar (@alopex.digital) with this same email for bidirectional sync.</p>
                                     </div>
                                     <div class="form-group">
                                         <label for="calendar-email">Calendar Email/ID:</label>
@@ -92,6 +114,8 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Step 3: Sync Rules -->
                 <section id="step-rules" class="step">
                     <div class="step-header">
                         <span class="step-number">3</span>
@@ -99,8 +123,16 @@
                     </div>
                     <div class="step-content">
                         <p class="section-hint">Configure how events sync between your calendars.</p>
-                        <div id="sync-rules-list" class="rules-list"></div>
-                        <button id="add-rule-btn" class="btn btn-secondary"><span>+</span> Add Sync Rule</button>
+
+                        <div id="sync-rules-list" class="rules-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+
+                        <button id="add-rule-btn" class="btn btn-secondary">
+                            <span>+</span> Add Sync Rule
+                        </button>
+
+                        <!-- Add Rule Modal -->
                         <div id="add-rule-modal" class="modal hidden">
                             <div class="modal-content">
                                 <div class="modal-header">
@@ -110,11 +142,15 @@
                                 <div class="modal-body">
                                     <div class="form-group">
                                         <label for="rule-source">From (Source):</label>
-                                        <select id="rule-source"></select>
+                                        <select id="rule-source">
+                                            <!-- Populated by JavaScript -->
+                                        </select>
                                     </div>
                                     <div class="form-group">
                                         <label for="rule-target">To (Target):</label>
-                                        <select id="rule-target"></select>
+                                        <select id="rule-target">
+                                            <!-- Populated by JavaScript -->
+                                        </select>
                                     </div>
                                     <div class="form-group">
                                         <label for="rule-visibility">Visibility:</label>
@@ -122,7 +158,10 @@
                                             <option value="censored">Censored (shows "Busy")</option>
                                             <option value="full">Full (shows event details)</option>
                                         </select>
-                                        <p class="field-hint"><strong>Censored:</strong> Events appear as "Busy" blocks<br><strong>Full:</strong> Shows complete event details</p>
+                                        <p class="field-hint">
+                                            <strong>Censored:</strong> Events appear as "Busy" blocks - hides personal details<br>
+                                            <strong>Full:</strong> Shows complete event name and description
+                                        </p>
                                     </div>
                                 </div>
                                 <div class="modal-footer">
@@ -133,6 +172,8 @@
                         </div>
                     </div>
                 </section>
+
+                <!-- Step 4: Team Visibility -->
                 <section id="step-team" class="step">
                     <div class="step-header">
                         <span class="step-number">4</span>
@@ -146,28 +187,39 @@
                             </label>
                             <div class="toggle-label">
                                 <strong>Share my work calendar with all team members</strong>
-                                <p>When enabled, your colleagues can see your work schedule.</p>
+                                <p>When enabled, your colleagues can see your work schedule (event names and times).</p>
                             </div>
                         </div>
                     </div>
                 </section>
+
+                <!-- Step 5: Save -->
                 <section id="step-save" class="step">
                     <div class="step-content save-section">
-                        <button id="save-btn" class="btn btn-primary btn-large">Save Configuration</button>
+                        <button id="save-btn" class="btn btn-primary btn-large">
+                            Save Configuration
+                        </button>
                         <p id="save-status" class="save-status"></p>
                     </div>
                 </section>
             </div>
         </main>
+
+        <!-- Footer -->
         <footer class="footer">
-            <p>Alopex Digital © 2026 | <a href="mailto:support@alopex.digital">Need help?</a></p>
+            <p>Alopex Digital &copy; 2026 | <a href="mailto:support@alopex.digital">Need help?</a></p>
         </footer>
     </div>
+
+    <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay hidden">
         <div class="spinner"></div>
         <p id="loading-text">Loading...</p>
     </div>
+
+    <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
+
     <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
