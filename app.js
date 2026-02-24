@@ -10,8 +10,10 @@
   // Application State                                                                                                                                                                        
   const state = {                                                                                                                                                                             
       user: null,                                                                                                                                                                             
-      calendars: [],  // Array of {calendar_id, calendar_email, calendar_name, calendar_type, access_verified}                                                                                
-      rules: [],      // Array of {rule_id, source_cal_id, target_cal_id, visibility, enabled}                                                                                                
+      calendars: [],                                                                                                                                                                          
+      rules: [],                                                                                                                                                                              
+      deletedCalendars: [],                                                                                                                                                                   
+      deletedRules: [],                                                                                                                                                                       
       teamShareEnabled: false,                                                                                                                                                                
       isLoading: false                                                                                                                                                                        
   };                                                                                                                                                                                          
@@ -154,6 +156,8 @@
       // Initialize with empty - will be populated from server or created fresh                                                                                                               
       state.calendars = [];                                                                                                                                                                   
       state.rules = [];                                                                                                                                                                       
+      state.deletedCalendars = [];                                                                                                                                                            
+      state.deletedRules = [];                                                                                                                                                                
                                                                                                                                                                                               
       loadUserConfiguration();                                                                                                                                                                
   }                                                                                                                                                                                           
@@ -162,6 +166,8 @@
       state.user = null;                                                                                                                                                                      
       state.calendars = [];                                                                                                                                                                   
       state.rules = [];                                                                                                                                                                       
+      state.deletedCalendars = [];                                                                                                                                                            
+      state.deletedRules = [];                                                                                                                                                                
       state.teamShareEnabled = false;                                                                                                                                                         
                                                                                                                                                                                               
       localStorage.removeItem('calendar_sync_user');                                                                                                                                          
@@ -286,6 +292,21 @@
   }                                                                                                                                                                                           
                                                                                                                                                                                               
   function removeCalendar(calendarId) {                                                                                                                                                       
+      // Track deletion for existing items (items that came from the server)                                                                                                                  
+      const calendar = state.calendars.find(c => c.calendar_id === calendarId);                                                                                                               
+      if (calendar && calendarId) {                                                                                                                                                           
+          state.deletedCalendars.push(calendarId);                                                                                                                                            
+      }                                                                                                                                                                                       
+                                                                                                                                                                                              
+      // Also track deletion of related rules                                                                                                                                                 
+      state.rules.forEach(r => {                                                                                                                                                              
+          if (r.source_cal_id === calendarId || r.target_cal_id === calendarId) {                                                                                                             
+              if (r.rule_id) {                                                                                                                                                                
+                  state.deletedRules.push(r.rule_id);                                                                                                                                         
+              }                                                                                                                                                                               
+          }                                                                                                                                                                                   
+      });                                                                                                                                                                                     
+                                                                                                                                                                                              
       state.calendars = state.calendars.filter(c => c.calendar_id !== calendarId);                                                                                                            
       state.rules = state.rules.filter(r =>                                                                                                                                                   
           r.source_cal_id !== calendarId && r.target_cal_id !== calendarId                                                                                                                    
@@ -389,6 +410,11 @@
   }                                                                                                                                                                                           
                                                                                                                                                                                               
   function removeRule(ruleId) {                                                                                                                                                               
+      // Track deletion for existing items                                                                                                                                                    
+      if (ruleId) {                                                                                                                                                                           
+          state.deletedRules.push(ruleId);                                                                                                                                                    
+      }                                                                                                                                                                                       
+                                                                                                                                                                                              
       state.rules = state.rules.filter(r => r.rule_id !== ruleId);                                                                                                                            
       renderRules();                                                                                                                                                                          
       showToast('Rule removed');                                                                                                                                                              
@@ -400,6 +426,10 @@
                                                                                                                                                                                               
   async function loadUserConfiguration() {                                                                                                                                                    
       showLoading('Loading your configuration...');                                                                                                                                           
+                                                                                                                                                                                              
+      // Reset deletion tracking on load                                                                                                                                                      
+      state.deletedCalendars = [];                                                                                                                                                            
+      state.deletedRules = [];                                                                                                                                                                
                                                                                                                                                                                               
       try {                                                                                                                                                                                   
           const response = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.GET_CONFIG + `?email=${state.user.email}`);                                                                     
@@ -487,7 +517,6 @@
       elements.saveStatus().textContent = '';                                                                                                                                                 
       elements.saveStatus().className = 'save-status';                                                                                                                                        
                                                                                                                                                                                               
-      // Format data for server (already in correct format)                                                                                                                                   
       const config = {                                                                                                                                                                        
           user: {                                                                                                                                                                             
               user_id: state.user.user_id,                                                                                                                                                    
@@ -496,7 +525,9 @@
               team_share_enabled: state.teamShareEnabled                                                                                                                                      
           },                                                                                                                                                                                  
           calendars: state.calendars,                                                                                                                                                         
-          rules: state.rules                                                                                                                                                                  
+          rules: state.rules,                                                                                                                                                                 
+          deletedCalendars: state.deletedCalendars,                                                                                                                                           
+          deletedRules: state.deletedRules                                                                                                                                                    
       };                                                                                                                                                                                      
                                                                                                                                                                                               
       try {                                                                                                                                                                                   
@@ -509,6 +540,10 @@
           const result = await response.json();                                                                                                                                               
                                                                                                                                                                                               
           if (result.success) {                                                                                                                                                               
+              // Clear deletion tracking after successful save                                                                                                                                
+              state.deletedCalendars = [];                                                                                                                                                    
+              state.deletedRules = [];                                                                                                                                                        
+                                                                                                                                                                                              
               elements.saveStatus().textContent = 'Configuration saved successfully!';                                                                                                        
               elements.saveStatus().classList.add('success');                                                                                                                                 
               showToast('Configuration saved! Sync will start within 5 minutes.', 'success');                                                                                                 
@@ -582,4 +617,5 @@
   window.removeCalendar = removeCalendar;                                                                                                                                                     
   window.removeRule = removeRule;                                                                                                                                                             
   window.toggleRule = toggleRule;                                                                                                                                                             
-  window.copyServiceAccount = copyServiceAccount; 
+  window.copyServiceAccount = copyServiceAccount;                                                                                                                                             
+                                                   
