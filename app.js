@@ -1,4 +1,4 @@
-● /**                                                                                                                                                                                         
+/**                                                                                                                                                                                         
    * Calendar Sync Application                                                                                                                                                                
    * Main JavaScript logic for the setup UI                                                                                                                                                   
    *                                                                                                                                                                                          
