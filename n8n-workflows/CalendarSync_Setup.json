@@ -10,11 +10,14 @@
           "allowedOrigins": "*"
         }
       },
-      "id": "webhook-save",
+      "id": "65fee1c1-a1dc-440d-95ec-3fbb3f8428b0",
       "name": "Webhook: Save Config",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 300],
+      "position": [
+        -448,
+        384
+      ],
       "webhookId": "calendar-sync-save"
     },
     {
@@ -26,137 +29,174 @@
           "allowedOrigins": "*"
         }
       },
-      "id": "webhook-verify",
+      "id": "be349706-e195-47af-bd49-7d83eae727c7",
       "name": "Webhook: Verify Calendar",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 540],
+      "position": [
+        -448,
+        992
+      ],
       "webhookId": "calendar-sync-verify"
     },
     {
       "parameters": {
-        "httpMethod": "GET",
         "path": "calendar-sync/get",
         "responseMode": "responseNode",
         "options": {
           "allowedOrigins": "*"
         }
       },
-      "id": "webhook-get",
+      "id": "f9bb9983-1465-48f5-b7fc-2937fb846955",
       "name": "Webhook: Get Config",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 780],
+      "position": [
+        -448,
+        1216
+      ],
       "webhookId": "calendar-sync-get"
     },
     {
       "parameters": {
-        "jsCode": "// Extract user data from request\nconst body = $input.first().json.body;\n\nconst user = body.user;\nconst calendars = body.calendars || [];\nconst rules = body.rules || [];\nconst teamShareEnabled = body.teamShareEnabled || false;\n\n// Generate user_id if not exists\nconst userId = user.id || `usr_${Date.now().toString(36)}`;\n\n// Prepare user row\nconst userRow = {\n  user_id: userId,\n  email: user.email,\n  name: user.name,\n  created_at: new Date().toISOString(),\n  team_share_enabled: teamShareEnabled ? 'TRUE' : 'FALSE',\n  last_active: new Date().toISOString()\n};\n\n// Prepare calendar rows\nconst calendarRows = calendars.map((cal, idx) => ({\n  calendar_id: cal.id || `cal_${Date.now().toString(36)}_${idx}`,\n  user_id: userId,\n  calendar_email: cal.email,\n  calendar_name: cal.name,\n  calendar_type: cal.type,\n  access_verified: cal.verified ? 'TRUE' : 'FALSE',\n  added_at: new Date().toISOString()\n}));\n\n// Prepare rule rows\nconst ruleRows = rules.map((rule, idx) => ({\n  rule_id: rule.id || `rul_${Date.now().toString(36)}_${idx}`,\n  user_id: userId,\n  source_cal_id: rule.sourceCalId,\n  target_cal_id: rule.targetCalId,\n  visibility: rule.visibility,\n  enabled: rule.enabled ? 'TRUE' : 'FALSE',\n  created_at: new Date().toISOString()\n}));\n\nreturn {\n  json: {\n    userId,\n    userEmail: user.email,\n    userRow,\n    calendarRows,\n    ruleRows,\n    teamShareEnabled\n  }\n};"
+        "jsCode": "// Extract user data from request\nconst body = $input.first().json.body;\n\nconst user = body.user;\nconst calendars = body.calendars || [];\nconst rules = body.rules || [];\nconst deletedCalendars = body.deletedCalendars || [];\nconst deletedRules = body.deletedRules || [];\n\n// Helper to check boolean\nconst isTrue = (val) => val === true || val === 'TRUE' || val === 'true' || val === 1 || val === '1';\n\nconst teamShareEnabled = isTrue(body.teamShareEnabled) || isTrue(user.team_share_enabled);\n\n// Use existing user_id or generate new\nconst userId = user.user_id || user.id || `usr_${Date.now().toString(36)}`;\n\n// Find work calendar email for team share trigger\nconst workCalendar = calendars.find(c => (c.calendar_type || c.type) === 'work');\nconst workCalendarEmail = workCalendar ? (workCalendar.calendar_email || workCalendar.email) : null;\n\n// Prepare user row\nconst userRow = {\n  user_id: userId,\n  email: user.email,\n  name: user.name,\n  created_at: new Date().toISOString(),\n  team_share_enabled: teamShareEnabled ? 'TRUE' : 'FALSE',\n  last_active: new Date().toISOString()\n};\n\n// Prepare calendar rows\nconst calendarRows = calendars.map((cal, idx) => ({\n  calendar_id: cal.calendar_id || cal.id || `cal_${Date.now().toString(36)}_${idx}`,\n  user_id: userId,\n  calendar_email: cal.calendar_email || cal.email,\n  calendar_name: cal.calendar_name || cal.name,\n  calendar_type: cal.calendar_type || cal.type,\n  access_verified: (isTrue(cal.access_verified) || isTrue(cal.verified)) ? 'TRUE' : 'FALSE',\n  added_at: new Date().toISOString()\n}));\n\n// Prepare rule rows\nconst ruleRows = rules.map((rule, idx) => ({\n  rule_id: rule.rule_id || rule.id || `rul_${Date.now().toString(36)}_${idx}`,\n  user_id: userId,\n  source_cal_id: rule.source_cal_id || rule.sourceCalId,\n  target_cal_id: rule.target_cal_id || rule.targetCalId,\n  visibility: rule.visibility,\n  enabled: isTrue(rule.enabled) ? 'TRUE' : 'FALSE',\n  created_at: new Date().toISOString()\n}));\n\n// Deduplicate rules\nconst seenRuleIds = new Set();\nconst seenSourceTarget = new Set();\nconst uniqueRuleRows = [];\nfor (const rule of ruleRows) {\n  const sourceTargetKey = `${rule.source_cal_id}_${rule.target_cal_id}`;\n  if (seenRuleIds.has(rule.rule_id) || seenSourceTarget.has(sourceTargetKey)) continue;\n  seenRuleIds.add(rule.rule_id);\n  seenSourceTarget.add(sourceTargetKey);\n  uniqueRuleRows.push(rule);\n}\n\n// Deduplicate calendars\nconst uniqueCalendarRows = [...new Map(calendarRows.map(c => [c.calendar_id, c])).values()];\n\nreturn {\n  json: {\n    userId,\n    userEmail: user.email,\n    userRow,\n    calendarRows: uniqueCalendarRows,\n    ruleRows: uniqueRuleRows,\n    deletedCalendars,\n    deletedRules,\n    hasDeletedCalendars: deletedCalendars.length > 0,\n    hasDeletedRules: deletedRules.length > 0,\n    teamShareEnabled,\n    workCalendarEmail\n  }\n};"
       },
-      "id": "parse-save-data",
+      "id": "0f5865da-c02e-44b0-9edd-893bf53f1572",
       "name": "Parse Save Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 300]
+      "position": [
+        -224,
+        384
+      ]
     },
     {
       "parameters": {
+        "authentication": "serviceAccount",
         "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
-          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
-          "mode": "id"
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=1058949679#gid=1058949679",
+          "mode": "url"
         },
         "sheetName": {
           "__rl": true,
-          "value": "Users",
-          "mode": "list"
+          "value": 1058949679,
+          "mode": "list",
+          "cachedResultName": "Users",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=1058949679"
         },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "user_id": "={{ $json.userRow.user_id }}",
             "email": "={{ $json.userRow.email }}",
+            "user_id": "={{ $json.userRow.user_id }}",
             "name": "={{ $json.userRow.name }}",
             "created_at": "={{ $json.userRow.created_at }}",
             "team_share_enabled": "={{ $json.userRow.team_share_enabled }}",
             "last_active": "={{ $json.userRow.last_active }}"
           },
-          "matchingColumns": ["email"]
+          "matchingColumns": [
+            "email"
+          ],
+          "schema": [
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "name",
+              "displayName": "name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "team_share_enabled",
+              "displayName": "team_share_enabled",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_active",
+              "displayName": "last_active",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
-      "id": "upsert-user",
+      "id": "e782447e-cf0a-42e0-a359-23f508eb1cf0",
       "name": "Upsert User",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.4,
-      "position": [680, 200],
+      "position": [
+        0,
+        0
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
-          "name": "Google Sheets"
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
         }
       }
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Calendars",
-          "mode": "list"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData"
-        },
-        "options": {}
-      },
-      "id": "append-calendars",
-      "name": "Append Calendars",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.4,
-      "position": [680, 300],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
-          "name": "Google Sheets"
+        "method": "POST",
+        "url": "https://n8n.alopex.digital/webhook/calendar-sync/team-share",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"userId\": {{ JSON.stringify($('Parse Save Data').item.json.userId) }},\n  \"userEmail\": {{ JSON.stringify($('Parse Save Data').item.json.userEmail) }},\n  \"teamShareEnabled\": {{ $('Parse Save Data').item.json.teamShareEnabled }},\n  \"workCalendarEmail\": {{ JSON.stringify($('Parse Save Data').item.json.workCalendarEmail) }}\n}",
+        "options": {
+          "timeout": 10000
         }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Rules",
-          "mode": "list"
-        },
-        "columns": {
-          "mappingMode": "autoMapInputData"
-        },
-        "options": {}
       },
-      "id": "append-rules",
-      "name": "Append Rules",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.4,
-      "position": [680, 400],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
-          "name": "Google Sheets"
-        }
-      }
+      "id": "9fe3b05b-898d-4c11-bf89-f75909c7a461",
+      "name": "Trigger Team Share",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -173,28 +213,266 @@
           }
         }
       },
-      "id": "respond-save-success",
+      "id": "3f0fc349-cb9d-4f9b-b7fa-993aaf5a6a27",
       "name": "Respond: Save Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [900, 300]
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=1058949679#gid=1058949679",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 6939085,
+          "mode": "list",
+          "cachedResultName": "Calendars",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=6939085"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "calendar_id": "={{ $json.calendar_id }}",
+            "user_id": "={{ $json.user_id }}",
+            "calendar_email": "={{ $json.calendar_email }}",
+            "calendar_name": "={{ $json.calendar_name }}",
+            "calendar_type": "={{ $json.calendar_type }}",
+            "access_verified": "={{ $json.access_verified }}",
+            "added_at": "={{ $json.added_at }}"
+          },
+          "matchingColumns": [
+            "calendar_id"
+          ],
+          "schema": [
+            {
+              "id": "calendar_id",
+              "displayName": "calendar_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calendar_email",
+              "displayName": "calendar_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calendar_name",
+              "displayName": "calendar_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "calendar_type",
+              "displayName": "calendar_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "access_verified",
+              "displayName": "access_verified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "added_at",
+              "displayName": "added_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "ff725e14-77d0-4a02-8c65-ad8659a9f5fc",
+      "name": "Upsert Calendars",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        384
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=1058949679#gid=1058949679",
+          "__regex": "https:\\/\\/(?:drive|docs)\\.google\\.com(?:\\/.*|)\\/d\\/([0-9a-zA-Z\\-_]+)(?:\\/.*|)"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 62384036,
+          "mode": "list",
+          "cachedResultName": "Rules",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=62384036"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "rule_id": "={{ $json.rule_id }}",
+            "user_id": "={{ $json.user_id }}",
+            "source_cal_id": "={{ $json.source_cal_id }}",
+            "target_cal_id": "={{ $json.target_cal_id }}",
+            "visibility": "={{ $json.visibility }}",
+            "enabled": "={{ $json.enabled }}",
+            "created_at": "={{ $json.created_at }}"
+          },
+          "matchingColumns": [
+            "rule_id"
+          ],
+          "schema": [
+            {
+              "id": "rule_id",
+              "displayName": "rule_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "source_cal_id",
+              "displayName": "source_cal_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "target_cal_id",
+              "displayName": "target_cal_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "visibility",
+              "displayName": "visibility",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "enabled",
+              "displayName": "enabled",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "044ea559-b2a9-4ae3-8ad9-c3cdc085f186",
+      "name": "Upsert Rules",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        192
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
     },
     {
       "parameters": {
         "jsCode": "// Extract calendar email to verify\nconst body = $input.first().json.body;\nconst calendarEmail = body.calendarEmail;\nconst userEmail = body.userEmail;\n\nreturn {\n  json: {\n    calendarEmail,\n    userEmail\n  }\n};"
       },
-      "id": "parse-verify-data",
+      "id": "6930f518-aed4-4b63-9455-4f1885737238",
       "name": "Parse Verify Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 540]
+      "position": [
+        -224,
+        992
+      ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://www.googleapis.com/calendar/v3/calendars/{{ encodeURIComponent($json.calendarEmail) }}/events",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -210,214 +488,34 @@
         },
         "options": {}
       },
-      "id": "verify-calendar-access",
+      "id": "57eabbb7-e758-4d6b-b88d-1fd54c6ab89f",
       "name": "Verify Calendar Access",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 540],
+      "position": [
+        0,
+        992
+      ],
       "credentials": {
-        "googleCalendarOAuth2Api": {
-          "id": "GOOGLE_CALENDAR_CREDENTIAL_ID",
-          "name": "Google Calendar Service Account"
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
         }
       },
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "check-error",
-              "leftValue": "={{ $json.error }}",
-              "rightValue": "",
-              "operator": {
-                "type": "object",
-                "operation": "notEmpty"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "const response = $input.first().json;\nif (response.error ||\n    response.message?.includes('Forbidden') ||\n    response.message?.includes('Not Found') ||\n    response.message?.includes('not found')) {\n  return { json: { success: false, error: 'Calendar not accessible. Please check sharing settings.' } };\n} else {\n  return { json: { success: true, message: 'Calendar access verified' } };\n}"
       },
-      "id": "check-verify-result",
-      "name": "Check Verify Result",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [900, 540]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: false, error: 'Calendar not accessible. Please check sharing settings.' }) }}",
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              }
-            ]
-          }
-        }
-      },
-      "id": "respond-verify-fail",
-      "name": "Respond: Verify Failed",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [1120, 480]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, message: 'Calendar access verified' }) }}",
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              }
-            ]
-          }
-        }
-      },
-      "id": "respond-verify-success",
-      "name": "Respond: Verify Success",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [1120, 600]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Extract email from query params\nconst query = $input.first().json.query;\nconst email = query.email;\n\nreturn {\n  json: {\n    email\n  }\n};"
-      },
-      "id": "parse-get-data",
-      "name": "Parse Get Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 780]
-    },
-    {
-      "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Users",
-          "mode": "list"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "email",
-              "lookupValue": "={{ $json.email }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "get-user",
-      "name": "Get User",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.4,
-      "position": [680, 720],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
-          "name": "Google Sheets"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Calendars",
-          "mode": "list"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "user_id",
-              "lookupValue": "={{ $('Get User').item.json.user_id }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "get-calendars",
-      "name": "Get Calendars",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.4,
-      "position": [680, 840],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
-          "name": "Google Sheets"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "read",
-        "documentId": {
-          "__rl": true,
-          "value": "1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "Rules",
-          "mode": "list"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "user_id",
-              "lookupValue": "={{ $('Get User').item.json.user_id }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "get-rules",
-      "name": "Get Rules",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.4,
-      "position": [900, 840],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
-          "name": "Google Sheets"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Combine user, calendars, and rules into response\nconst user = $('Get User').first()?.json || {};\nconst calendars = $('Get Calendars').all().map(item => ({\n  id: item.json.calendar_id,\n  email: item.json.calendar_email,\n  name: item.json.calendar_name,\n  type: item.json.calendar_type,\n  verified: item.json.access_verified === 'TRUE'\n}));\nconst rules = $('Get Rules').all().map(item => ({\n  id: item.json.rule_id,\n  sourceCalId: item.json.source_cal_id,\n  targetCalId: item.json.target_cal_id,\n  visibility: item.json.visibility,\n  enabled: item.json.enabled === 'TRUE'\n}));\n\nconst response = {\n  user: {\n    id: user.user_id,\n    email: user.email,\n    name: user.name\n  },\n  calendars,\n  rules,\n  teamShareEnabled: user.team_share_enabled === 'TRUE'\n};\n\nreturn { json: response };"
-      },
-      "id": "build-get-response",
-      "name": "Build Get Response",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1120, 780]
+      "position": [
+        224,
+        992
+      ],
+      "id": "2b701965-c01a-4eae-920e-f27caab4fd51",
+      "name": "Code in JavaScript"
     },
     {
       "parameters": {
@@ -434,13 +532,431 @@
           }
         }
       },
-      "id": "respond-get",
+      "id": "67fbe915-1dbc-4f89-836f-fbe9eb833cfa",
+      "name": "Respond: Verify Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst email = input.query?.email || '';\nif (!email) {\n  return { json: { error: 'Email parameter is required' } };\n}\nreturn { json: { email } };"
+      },
+      "id": "ff8ccf7a-2e19-4d57-99b4-8ec5111b3b7f",
+      "name": "Parse Get Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=1058949679#gid=1058949679",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1058949679,
+          "mode": "list",
+          "cachedResultName": "Users",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=1058949679"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "email",
+              "lookupValue": "={{ $json.email }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b3933c4-6dea-4e33-a6bc-490d993d0988",
+      "name": "Get User",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        1216
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=1058949679#gid=1058949679",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 6939085,
+          "mode": "list",
+          "cachedResultName": "Calendars",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=6939085"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "user_id",
+              "lookupValue": "={{ $('Get User').item.json.user_id }}"
+            }
+          ]
+        },
+        "options": {
+          "returnAllMatches": "returnAllMatches"
+        }
+      },
+      "id": "656ba592-2d77-4eac-884a-181598084c53",
+      "name": "Get Calendars",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        1216
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=1058949679#gid=1058949679",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 62384036,
+          "mode": "list",
+          "cachedResultName": "Rules",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=62384036"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "user_id",
+              "lookupValue": "={{ $('Get User').item.json.user_id }}"
+            }
+          ]
+        },
+        "options": {
+          "returnAllMatches": "returnAllMatches"
+        }
+      },
+      "id": "e25c3ddf-3f97-4522-80d9-7ab017e55e6f",
+      "name": "Get Rules",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        1216
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items from each node properly\nconst userItems = $('Get User').all();\nconst calendarItems = $('Get Calendars').all();\nconst ruleItems = $('Get Rules').all();\n\nconst user = userItems[0]?.json || {};\n\n// Helper function to check boolean values\nconst isTrue = (val) => val === true || val === 'TRUE' || val === 'true' || val === 1 || val === '1';\n\nconst calendars = calendarItems.map(item => ({\n  calendar_id: item.json.calendar_id,\n  calendar_email: item.json.calendar_email,\n  calendar_name: item.json.calendar_name,\n  calendar_type: item.json.calendar_type,\n  access_verified: isTrue(item.json.access_verified)\n}));\n\n// Deduplicate calendars by calendar_id\nconst uniqueCalendars = [...new Map(calendars.map(c => [c.calendar_id, c])).values()];\n\nconst rules = ruleItems.map(item => ({\n  rule_id: item.json.rule_id,\n  source_cal_id: item.json.source_cal_id,\n  target_cal_id: item.json.target_cal_id,\n  visibility: item.json.visibility,\n  enabled: isTrue(item.json.enabled)\n}));\n\n// Deduplicate rules by rule_id\nconst uniqueRules = [...new Map(rules.map(r => [r.rule_id, r])).values()];\n\nreturn {\n  json: {\n    user: {\n      user_id: user.user_id,\n      email: user.email,\n      name: user.name,\n      team_share_enabled: isTrue(user.team_share_enabled)\n    },\n    calendars: uniqueCalendars,\n    rules: uniqueRules\n  }\n};"
+      },
+      "id": "7200bf91-1ebb-4793-a639-06f28e252450",
+      "name": "Build Get Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ec352206-0532-4b57-ad5c-b11d33d6e85d",
       "name": "Respond: Get Config",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1340, 780]
+      "position": [
+        896,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "ruleRows",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        0,
+        192
+      ],
+      "id": "dbc19f12-053c-4372-8104-1b9b24626f49",
+      "name": "Split Rules"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "calendarRows",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        0,
+        384
+      ],
+      "id": "88aa8543-75f0-4358-a11e-72ca2dce13e2",
+      "name": "Split Calendars"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=62384036#gid=62384036",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 62384036,
+          "mode": "list",
+          "cachedResultName": "Rules",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=62384036"
+        },
+        "options": {
+          "returnAllMatches": "returnAllMatches"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        576
+      ],
+      "id": "b81ad187-8fe5-431e-b142-18b3c0c7f6c7",
+      "name": "Read All Rules",
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get deleted rule IDs from Parse Save Data\nconst parseData = $('Parse Save Data').first().json;\nconst deletedRuleIds = parseData.deletedRules || [];\n\nif (deletedRuleIds.length === 0) {\n  return [{ json: { requests: [], skip: true } }];\n}\n\n// Get all rules from the sheet\nconst allRules = $('Read All Rules').all();\n\n// Find row indices for rules to delete (0-based index in the items array)\nconst rowsToDelete = [];\nallRules.forEach((item, index) => {\n  if (deletedRuleIds.includes(item.json.rule_id)) {\n    // Row number in sheet = index + 2 (1 for header, 1 for 0-based to 1-based)\n    rowsToDelete.push(index + 2);\n  }\n});\n\nif (rowsToDelete.length === 0) {\n  return [{ json: { requests: [], skip: true } }];\n}\n\n// Sort descending to delete from bottom to top (avoids row shifting issues)\nrowsToDelete.sort((a, b) => b - a);\n\n// Build batchUpdate requests for Google Sheets API\nconst requests = rowsToDelete.map(rowNum => ({\n  deleteDimension: {\n    range: {\n      sheetId: 62384036,\n      dimension: \"ROWS\",\n      startIndex: rowNum - 1,\n      endIndex: rowNum\n    }\n  }\n}));\n\nreturn [{ json: { requests, rowsToDelete, skip: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        576
+      ],
+      "id": "0f02c94b-5fce-439f-902e-3dfb73a7ac57",
+      "name": "Build Delete Rules Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        448,
+        576
+      ],
+      "id": "5e513080-e85a-460c-920a-ef49a3a65f4d",
+      "name": "Should Delete Rules?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ requests: $json.requests }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        576
+      ],
+      "id": "b159838b-eb03-482b-8915-66baaff4e3fe",
+      "name": "Delete Rules via API",
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit?gid=6939085#gid=6939085",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 6939085,
+          "mode": "list",
+          "cachedResultName": "Calendars",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego/edit#gid=6939085"
+        },
+        "options": {
+          "returnAllMatches": "returnAllMatches"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        768
+      ],
+      "id": "16901a0d-d6f7-4987-ac8b-bf503d45c25c",
+      "name": "Read All Calendars",
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get deleted calendar IDs from Parse Save Data\nconst parseData = $('Parse Save Data').first().json;\nconst deletedCalendarIds = parseData.deletedCalendars || [];\n\nif (deletedCalendarIds.length === 0) {\n  return [{ json: { requests: [], skip: true } }];\n}\n\n// Get all calendars from the sheet\nconst allCalendars = $('Read All Calendars').all();\n\n// Find row indices for calendars to delete\nconst rowsToDelete = [];\nallCalendars.forEach((item, index) => {\n  if (deletedCalendarIds.includes(item.json.calendar_id)) {\n    rowsToDelete.push(index + 2);\n  }\n});\n\nif (rowsToDelete.length === 0) {\n  return [{ json: { requests: [], skip: true } }];\n}\n\n// Sort descending to delete from bottom to top\nrowsToDelete.sort((a, b) => b - a);\n\n// Build batchUpdate requests\nconst requests = rowsToDelete.map(rowNum => ({\n  deleteDimension: {\n    range: {\n      sheetId: 6939085,\n      dimension: \"ROWS\",\n      startIndex: rowNum - 1,\n      endIndex: rowNum\n    }\n  }\n}));\n\nreturn [{ json: { requests, rowsToDelete, skip: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        768
+      ],
+      "id": "ba135818-ee50-4a26-8e22-0b4c52da8996",
+      "name": "Build Delete Calendars Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-skip-cal",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        448,
+        768
+      ],
+      "id": "6b81e645-b509-4ba8-88e2-8d171f310c64",
+      "name": "Should Delete Calendars?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ requests: $json.requests }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        768
+      ],
+      "id": "3b77138d-0971-46a8-b25a-da9ec18fe6d8",
+      "name": "Delete Calendars via API",
+      "credentials": {
+        "googleApi": {
+          "id": "DDmiUsAC67Vo3ANj",
+          "name": "Google Service Account account"
+        }
+      },
+      "onError": "continueRegularOutput"
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook: Save Config": {
       "main": [
@@ -462,12 +978,22 @@
             "index": 0
           },
           {
-            "node": "Append Calendars",
+            "node": "Split Rules",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Append Rules",
+            "node": "Split Calendars",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read All Rules",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Read All Calendars",
             "type": "main",
             "index": 0
           }
@@ -475,6 +1001,17 @@
       ]
     },
     "Upsert User": {
+      "main": [
+        [
+          {
+            "node": "Trigger Team Share",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Team Share": {
       "main": [
         [
           {
@@ -511,22 +1048,15 @@
       "main": [
         [
           {
-            "node": "Check Verify Result",
+            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check Verify Result": {
+    "Code in JavaScript": {
       "main": [
-        [
-          {
-            "node": "Respond: Verify Failed",
-            "type": "main",
-            "index": 0
-          }
-        ],
         [
           {
             "node": "Respond: Verify Success",
@@ -601,13 +1131,104 @@
           }
         ]
       ]
+    },
+    "Split Rules": {
+      "main": [
+        [
+          {
+            "node": "Upsert Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Calendars": {
+      "main": [
+        [
+          {
+            "node": "Upsert Calendars",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Rules": {
+      "main": [
+        [
+          {
+            "node": "Build Delete Rules Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delete Rules Request": {
+      "main": [
+        [
+          {
+            "node": "Should Delete Rules?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Delete Rules?": {
+      "main": [
+        [
+          {
+            "node": "Delete Rules via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read All Calendars": {
+      "main": [
+        [
+          {
+            "node": "Build Delete Calendars Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Delete Calendars Request": {
+      "main": [
+        [
+          {
+            "node": "Should Delete Calendars?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Delete Calendars?": {
+      "main": [
+        [
+          {
+            "node": "Delete Calendars via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
+  "active": true,
   "settings": {
     "executionOrder": "v1"
   },
-  "staticData": null,
-  "tags": [],
-  "triggerCount": 3,
-  "pinData": {}
+  "versionId": "e0231952-2463-40bf-90d4-c4a36ebbe00a",
+  "meta": {
+    "instanceId": "8a136600058d5c94e6d06a7d1e649e765034d5df154553535446dc37c60fe405"
+  },
+  "id": "Q7UN5dGyNY93vePE",
+  "tags": []
 }
