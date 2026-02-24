@@ -436,21 +436,33 @@ async function loadUserConfiguration() {
         if (response.ok) {
             const config = await response.json();
 
-            if (config.calendars) {
-                // Merge with existing work calendar
-                const workCal = state.calendars[0];
-                // Map server format (snake_case) to client format (camelCase)
-                const externalCalendars = config.calendars
-                    .filter(c => c.type === 'external' || c.calendar_type === 'external')
-                    .map(c => ({
-                        id: c.id || c.calendar_id,
-                        email: c.email || c.calendar_email,
-                        name: c.name || c.calendar_name,
-                        type: 'external',
-                        verified: c.verified !== false
-                    }));
-                state.calendars = [workCal, ...externalCalendars];
-            }
+            if (config.calendars) {                                                                                                                                                                     
+      // Find work calendar from server (preserve its ID)                                                                                                                                     
+      const serverWorkCal = config.calendars.find(c =>                                                                                                                                        
+          c.type === 'work' || c.calendar_type === 'work'                                                                                                                                     
+      );                                                                                                                                                                                      
+                                                                                                                                                                                              
+      // Use server work calendar ID if available                                                                                                                                             
+      const workCal = serverWorkCal ? {                                                                                                                                                       
+          id: serverWorkCal.id || serverWorkCal.calendar_id,                                                                                                                                  
+          email: state.user.email,                                                                                                                                                            
+          name: 'Work',                                                                                                                                                                       
+          type: 'work',                                                                                                                                                                       
+          verified: true                                                                                                                                                                      
+      } : state.calendars[0];                                                                                                                                                                 
+                                                                                                                                                                                              
+      // Map server format (snake_case) to client format (camelCase)                                                                                                                          
+      const externalCalendars = config.calendars                                                                                                                                              
+          .filter(c => c.type === 'external' || c.calendar_type === 'external')                                                                                                               
+          .map(c => ({                                                                                                                                                                        
+              id: c.id || c.calendar_id,                                                                                                                                                      
+              email: c.email || c.calendar_email,                                                                                                                                             
+              name: c.name || c.calendar_name,                                                                                                                                                
+              type: 'external',                                                                                                                                                               
+              verified: c.verified !== false                                                                                                                                                  
+          }));                                                                                                                                                                                
+      state.calendars = [workCal, ...externalCalendars];                                                                                                                                      
+  }       
 
             if (config.rules) {
                 // Map server format (snake_case) to client format (camelCase)
