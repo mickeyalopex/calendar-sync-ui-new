@@ -1,13 +1,17 @@
 /**
  * Calendar Sync Application
  * Main JavaScript logic for the setup UI
+ *
+ * Data format matches Google Sheets:
+ * - Calendars: calendar_id, calendar_email, calendar_name, calendar_type, access_verified
+ * - Rules: rule_id, source_cal_id, target_cal_id, visibility, enabled
  */
 
 // Application State
 const state = {
     user: null,
-    calendars: [],
-    rules: [],
+    calendars: [],  // Array of {calendar_id, calendar_email, calendar_name, calendar_type, access_verified}
+    rules: [],      // Array of {rule_id, source_cal_id, target_cal_id, visibility, enabled}
     teamShareEnabled: false,
     isLoading: false
 };
@@ -52,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initGoogleSignIn() {
-    // Wait for Google Identity Services to load
     if (typeof google === 'undefined') {
         setTimeout(initGoogleSignIn, 100);
         return;
@@ -78,7 +81,6 @@ function initGoogleSignIn() {
         }
     );
 
-    // Check for existing session
     const savedUser = localStorage.getItem('calendar_sync_user');
     if (savedUser) {
         const user = JSON.parse(savedUser);
@@ -89,29 +91,19 @@ function initGoogleSignIn() {
 }
 
 function initEventListeners() {
-    // Sign Out
     elements.signOutBtn()?.addEventListener('click', handleSignOut);
-
-    // Add Calendar Modal
     elements.addCalendarBtn()?.addEventListener('click', () => showModal('add-calendar-modal'));
     elements.verifyCalendarBtn()?.addEventListener('click', handleVerifyCalendar);
-
-    // Add Rule Modal
     elements.addRuleBtn()?.addEventListener('click', () => {
         populateRuleDropdowns();
         showModal('add-rule-modal');
     });
     elements.createRuleBtn()?.addEventListener('click', handleCreateRule);
-
-    // Team Share Toggle
     elements.teamShareToggle()?.addEventListener('change', (e) => {
         state.teamShareEnabled = e.target.checked;
     });
-
-    // Save Button
     elements.saveBtn()?.addEventListener('click', handleSaveConfiguration);
 
-    // Modal Close Buttons
     document.querySelectorAll('.modal-close, .modal-cancel').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const modal = e.target.closest('.modal');
@@ -119,7 +111,6 @@ function initEventListeners() {
         });
     });
 
-    // Close modal on background click
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', (e) => {
             if (e.target === modal) hideModal(modal.id);
@@ -140,7 +131,7 @@ function handleGoogleSignIn(response) {
     }
 
     const user = {
-        id: payload.sub,
+        user_id: payload.sub,
         email: payload.email,
         name: payload.name,
         picture: payload.picture
@@ -153,7 +144,6 @@ function handleGoogleSignIn(response) {
 function handleUserAuthenticated(user) {
     state.user = user;
 
-    // Update UI
     elements.stepSignin().classList.add('hidden');
     elements.configSections().classList.remove('hidden');
     elements.userInfo().classList.remove('hidden');
@@ -161,16 +151,10 @@ function handleUserAuthenticated(user) {
     elements.userName().textContent = user.name;
     elements.workCalendarEmail().textContent = user.email;
 
-    // Add work calendar to state
-    state.calendars = [{
-        id: generateId('cal'),
-        email: user.email,
-        name: 'Work',
-        type: 'work',
-        verified: true
-    }];
+    // Initialize with empty - will be populated from server or created fresh
+    state.calendars = [];
+    state.rules = [];
 
-    // Load existing configuration
     loadUserConfiguration();
 }
 
@@ -181,7 +165,6 @@ function handleSignOut() {
     state.teamShareEnabled = false;
 
     localStorage.removeItem('calendar_sync_user');
-
     google.accounts.id.disableAutoSelect();
 
     elements.stepSignin().classList.remove('hidden');
@@ -195,9 +178,13 @@ function handleSignOut() {
 // CALENDAR MANAGEMENT
 // ==========================================
 
+function getCalendarById(calendarId) {
+    return state.calendars.find(c => c.calendar_id === calendarId);
+}
+
 function renderCalendars() {
     const list = elements.externalCalendarsList();
-    const externalCalendars = state.calendars.filter(c => c.type === 'external');
+    const externalCalendars = state.calendars.filter(c => c.calendar_type === 'external');
 
     if (externalCalendars.length === 0) {
         list.innerHTML = '<p class="hint">No external calendars added yet.</p>';
@@ -205,16 +192,16 @@ function renderCalendars() {
     }
 
     list.innerHTML = externalCalendars.map(cal => `
-        <div class="calendar-item" data-id="${cal.id}">
+        <div class="calendar-item" data-id="${cal.calendar_id}">
             <span class="calendar-icon">📆</span>
             <div style="flex: 1">
-                <span class="calendar-email">${cal.email}</span>
-                <span class="calendar-name"> - ${cal.name}</span>
+                <span class="calendar-email">${cal.calendar_email}</span>
+                <span class="calendar-name"> - ${cal.calendar_name}</span>
             </div>
-            <span class="calendar-badge ${cal.verified ? 'external' : 'pending'}">
-                ${cal.verified ? 'Verified' : 'Pending'}
+            <span class="calendar-badge ${cal.access_verified ? 'external' : 'pending'}">
+                ${cal.access_verified ? 'Verified' : 'Pending'}
             </span>
-            <button class="btn btn-small btn-danger" onclick="removeCalendar('${cal.id}')">
+            <button class="btn btn-small btn-danger" onclick="removeCalendar('${cal.calendar_id}')">
                 Remove
             </button>
         </div>
@@ -235,8 +222,7 @@ async function handleVerifyCalendar() {
         return;
     }
 
-    // Check if already added
-    if (state.calendars.some(c => c.email === email)) {
+    if (state.calendars.some(c => c.calendar_email === email)) {
         showToast('This calendar is already added', 'error');
         return;
     }
@@ -244,7 +230,6 @@ async function handleVerifyCalendar() {
     showLoading('Verifying calendar access...');
 
     try {
-        // Call n8n webhook to verify access
         const response = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.VERIFY_CALENDAR, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -257,18 +242,17 @@ async function handleVerifyCalendar() {
         const result = await response.json();
 
         const calendar = {
-            id: generateId('cal'),
-            email: email,
-            name: name,
-            type: 'external',
-            verified: result.success === true
+            calendar_id: generateId('cal'),
+            calendar_email: email,
+            calendar_name: name,
+            calendar_type: 'external',
+            access_verified: result.success === true
         };
 
         state.calendars.push(calendar);
         renderCalendars();
         hideModal('add-calendar-modal');
 
-        // Clear form
         elements.calendarEmail().value = '';
         elements.calendarName().value = '';
 
@@ -280,13 +264,12 @@ async function handleVerifyCalendar() {
     } catch (error) {
         console.error('Verification error:', error);
 
-        // Add anyway (verification can happen later)
         const calendar = {
-            id: generateId('cal'),
-            email: email,
-            name: name,
-            type: 'external',
-            verified: false
+            calendar_id: generateId('cal'),
+            calendar_email: email,
+            calendar_name: name,
+            calendar_type: 'external',
+            access_verified: false
         };
 
         state.calendars.push(calendar);
@@ -302,12 +285,11 @@ async function handleVerifyCalendar() {
     }
 }
 
-function removeCalendar(id) {
-    // Remove calendar
-    state.calendars = state.calendars.filter(c => c.id !== id);
-
-    // Remove rules that use this calendar
-    state.rules = state.rules.filter(r => r.sourceCalId !== id && r.targetCalId !== id);
+function removeCalendar(calendarId) {
+    state.calendars = state.calendars.filter(c => c.calendar_id !== calendarId);
+    state.rules = state.rules.filter(r =>
+        r.source_cal_id !== calendarId && r.target_cal_id !== calendarId
+    );
 
     renderCalendars();
     renderRules();
@@ -323,18 +305,17 @@ function populateRuleDropdowns() {
     const targetSelect = elements.ruleTarget();
 
     const options = state.calendars.map(cal =>
-        `<option value="${cal.id}">${cal.name} (${cal.email})</option>`
+        `<option value="${cal.calendar_id}">${cal.calendar_name} (${cal.calendar_email})</option>`
     ).join('');
 
     sourceSelect.innerHTML = options;
     targetSelect.innerHTML = options;
 
-    // Default: first external → work
-    const externalCal = state.calendars.find(c => c.type === 'external');
-    const workCal = state.calendars.find(c => c.type === 'work');
+    const externalCal = state.calendars.find(c => c.calendar_type === 'external');
+    const workCal = state.calendars.find(c => c.calendar_type === 'work');
 
-    if (externalCal) sourceSelect.value = externalCal.id;
-    if (workCal) targetSelect.value = workCal.id;
+    if (externalCal) sourceSelect.value = externalCal.calendar_id;
+    if (workCal) targetSelect.value = workCal.calendar_id;
 }
 
 function renderRules() {
@@ -346,23 +327,24 @@ function renderRules() {
     }
 
     list.innerHTML = state.rules.map(rule => {
-        const sourceCal = state.calendars.find(c => c.id === rule.sourceCalId);
-        const targetCal = state.calendars.find(c => c.id === rule.targetCalId);
+        const sourceCal = getCalendarById(rule.source_cal_id);
+        const targetCal = getCalendarById(rule.target_cal_id);
+        const isEnabled = rule.enabled === true || rule.enabled === 'TRUE' || rule.enabled === 'true';
 
         return `
-            <div class="rule-item" data-id="${rule.id}">
+            <div class="rule-item" data-id="${rule.rule_id}">
                 <div class="rule-flow">
-                    <span class="rule-calendar">${sourceCal?.name || 'Unknown'}</span>
+                    <span class="rule-calendar">${sourceCal?.calendar_name || 'Unknown'}</span>
                     <span class="rule-arrow">→</span>
-                    <span class="rule-calendar">${targetCal?.name || 'Unknown'}</span>
+                    <span class="rule-calendar">${targetCal?.calendar_name || 'Unknown'}</span>
                 </div>
                 <span class="rule-visibility ${rule.visibility}">${rule.visibility}</span>
                 <label class="toggle rule-toggle">
-                    <input type="checkbox" ${rule.enabled ? 'checked' : ''}
-                           onchange="toggleRule('${rule.id}', this.checked)">
+                    <input type="checkbox" ${isEnabled ? 'checked' : ''}
+                           onchange="toggleRule('${rule.rule_id}', this.checked)">
                     <span class="toggle-slider"></span>
                 </label>
-                <button class="btn btn-small btn-danger" onclick="removeRule('${rule.id}')">
+                <button class="btn btn-small btn-danger" onclick="removeRule('${rule.rule_id}')">
                     Remove
                 </button>
             </div>
@@ -380,16 +362,15 @@ function handleCreateRule() {
         return;
     }
 
-    // Check for duplicate rule
-    if (state.rules.some(r => r.sourceCalId === sourceId && r.targetCalId === targetId)) {
+    if (state.rules.some(r => r.source_cal_id === sourceId && r.target_cal_id === targetId)) {
         showToast('This rule already exists', 'error');
         return;
     }
 
     const rule = {
-        id: generateId('rul'),
-        sourceCalId: sourceId,
-        targetCalId: targetId,
+        rule_id: generateId('rul'),
+        source_cal_id: sourceId,
+        target_cal_id: targetId,
         visibility: visibility,
         enabled: true
     };
@@ -400,15 +381,15 @@ function handleCreateRule() {
     showToast('Sync rule created', 'success');
 }
 
-function toggleRule(id, enabled) {
-    const rule = state.rules.find(r => r.id === id);
+function toggleRule(ruleId, enabled) {
+    const rule = state.rules.find(r => r.rule_id === ruleId);
     if (rule) {
         rule.enabled = enabled;
     }
 }
 
-function removeRule(id) {
-    state.rules = state.rules.filter(r => r.id !== id);
+function removeRule(ruleId) {
+    state.rules = state.rules.filter(r => r.rule_id !== ruleId);
     renderRules();
     showToast('Rule removed');
 }
@@ -426,52 +407,63 @@ async function loadUserConfiguration() {
         if (response.ok) {
             const config = await response.json();
 
-            if (config.calendars) {
-                // Find work calendar from server (preserves the ID used in rules)
-                const serverWorkCal = config.calendars.find(c =>
-                    c.type === 'work' || c.calendar_type === 'work'
-                );
-
-                // Use server's work calendar ID if available, otherwise keep the new one
-                const workCal = serverWorkCal ? {
-                    id: serverWorkCal.calendar_id || serverWorkCal.id,
-                    email: state.user.email,
-                    name: 'Work',
-                    type: 'work',
-                    verified: true
-                } : state.calendars[0];
-
-                // Map server format (snake_case) to client format (camelCase)
-                const externalCalendars = config.calendars
-                    .filter(c => c.type === 'external' || c.calendar_type === 'external')
-                    .map(c => ({
-                        id: c.calendar_id || c.id,
-                        email: c.calendar_email || c.email,
-                        name: c.calendar_name || c.name,
-                        type: 'external',
-                        verified: c.verified !== false
-                    }));
-                state.calendars = [workCal, ...externalCalendars];
+            // Load calendars from server
+            if (config.calendars && config.calendars.length > 0) {
+                state.calendars = config.calendars.map(c => ({
+                    calendar_id: c.calendar_id,
+                    calendar_email: c.calendar_email,
+                    calendar_name: c.calendar_name,
+                    calendar_type: c.calendar_type,
+                    access_verified: c.access_verified === true || c.access_verified === 'TRUE'
+                }));
+            } else {
+                // No saved config - create default work calendar
+                state.calendars = [{
+                    calendar_id: generateId('cal'),
+                    calendar_email: state.user.email,
+                    calendar_name: 'Work',
+                    calendar_type: 'work',
+                    access_verified: true
+                }];
             }
 
-            if (config.rules) {
-                // Map server format (snake_case) to client format (camelCase)
+            // Load rules from server
+            if (config.rules && config.rules.length > 0) {
                 state.rules = config.rules.map(r => ({
-                    id: r.rule_id || r.id,
-                    sourceCalId: r.source_cal_id || r.sourceCalId,
-                    targetCalId: r.target_cal_id || r.targetCalId,
-                    visibility: r.visibility || 'censored',
+                    rule_id: r.rule_id,
+                    source_cal_id: r.source_cal_id,
+                    target_cal_id: r.target_cal_id,
+                    visibility: r.visibility,
                     enabled: r.enabled === true || r.enabled === 'TRUE' || r.enabled === 'true'
                 }));
             }
 
-            if (config.teamShareEnabled !== undefined) {
-                state.teamShareEnabled = config.teamShareEnabled;
+            // Load team share setting
+            if (config.user && config.user.team_share_enabled !== undefined) {
+                state.teamShareEnabled = config.user.team_share_enabled === true ||
+                                         config.user.team_share_enabled === 'TRUE';
                 elements.teamShareToggle().checked = state.teamShareEnabled;
             }
+        } else {
+            // No config found - create default work calendar
+            state.calendars = [{
+                calendar_id: generateId('cal'),
+                calendar_email: state.user.email,
+                calendar_name: 'Work',
+                calendar_type: 'work',
+                access_verified: true
+            }];
         }
     } catch (error) {
         console.log('No existing configuration found, starting fresh');
+        // Create default work calendar
+        state.calendars = [{
+            calendar_id: generateId('cal'),
+            calendar_email: state.user.email,
+            calendar_name: 'Work',
+            calendar_type: 'work',
+            access_verified: true
+        }];
     } finally {
         renderCalendars();
         renderRules();
@@ -494,15 +486,16 @@ async function handleSaveConfiguration() {
     elements.saveStatus().textContent = '';
     elements.saveStatus().className = 'save-status';
 
+    // Format data for server (already in correct format)
     const config = {
         user: {
-            id: state.user.id,
+            user_id: state.user.user_id,
             email: state.user.email,
-            name: state.user.name
+            name: state.user.name,
+            team_share_enabled: state.teamShareEnabled
         },
         calendars: state.calendars,
-        rules: state.rules,
-        teamShareEnabled: state.teamShareEnabled
+        rules: state.rules
     };
 
     try {
