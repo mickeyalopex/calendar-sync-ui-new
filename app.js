@@ -329,9 +329,16 @@ function onModalPrimaryClick() {
     else { handleConnectCalendar(); }
 }
 
-function handleConnectCalendar() {
+async function handleConnectCalendar() {
     const email = elements.calendarEmail().value.trim();
     if (!email) { showToast('Enter the account email first', 'error'); return; }
+    // Already connected (token already stored)? Skip the popup, just load the calendars.
+    if (await isAccountConnected(email)) {
+        showToast('This account is already connected — here are your calendars.', 'success');
+        setModalConnectBtn(true);
+        loadAccountCalendars();
+        return;
+    }
     openConnectPopup(email);
     showToast('Sign in and click Allow in the Google window…', 'success');
     pollConnected(email, () => { showToast('Connected — loading your calendars…', 'success'); setModalConnectBtn(true); loadAccountCalendars(); });
