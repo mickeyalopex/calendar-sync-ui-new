@@ -6,7 +6,8 @@ const CONFIG = {
     ENDPOINTS: {
         SAVE_CONFIG: '/calendar-sync/save',
         VERIFY_CALENDAR: '/calendar-sync/verify',
-        GET_CONFIG: '/calendar-sync/get'
+        GET_CONFIG: '/calendar-sync/get',
+        LIST_CALENDARS: '/calendar-sync/calendars'
     },
     SPREADSHEET_ID: '1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego',
     OAUTH: {
