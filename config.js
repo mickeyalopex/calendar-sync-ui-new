@@ -8,5 +8,10 @@ const CONFIG = {
         VERIFY_CALENDAR: '/calendar-sync/verify',
         GET_CONFIG: '/calendar-sync/get'
     },
-    SPREADSHEET_ID: '1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego'
+    SPREADSHEET_ID: '1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego',
+    OAUTH: {
+        AUTH_URL: 'https://accounts.google.com/o/oauth2/v2/auth',
+        REDIRECT_URI: 'https://n8n.alopex.digital/webhook/calendar-sync/oauth-callback',
+        SCOPES: 'openid email profile https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events'
+    }
 };
