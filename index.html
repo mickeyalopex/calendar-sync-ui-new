@@ -57,6 +57,7 @@
                                 <span class="calendar-icon">💼</span>
                                 <span class="calendar-email" id="work-calendar-email">Loading...</span>
                                 <span class="calendar-badge">Auto-detected</span>
+                                <button class="btn btn-small btn-primary" onclick="connectWork()">Connect</button>
                             </div>
                         </div>
 
@@ -83,36 +84,8 @@
                                 </div>
                                 <div class="modal-body">
                                     <div class="instructions">
-                                        <div class="video-tutorial" style="margin-bottom: 16px; padding: 12px; background: #f0f4ff; border-radius: 8px;">
-                                            <strong>📹 Video Tutorial:</strong>
-                                            <a href="https://sharing.clickup.com/clip/p/t90152212314/c1e4f679-9a81-4d31-b2e9-459c7de65028/c1e4f679-9a81-4d31-b2e9-459c7de65028.webm" target="_blank" style="margin-left: 8px;">Watch how to add calendars</a>
-                                        </div>
-
-                                        <h4>Step 1: First, share your WORK calendar (@alopex.digital)</h4>
-                                        <p style="margin-bottom: 10px; color: #666;">This is required for bidirectional sync to work.</p>
-                                        <ol>
-                                            <li>Open <a href="https://calendar.google.com/calendar/u/0/r/settings" target="_blank">Google Calendar Settings</a> (make sure you're logged in with your @alopex.digital account)</li>
-                                            <li>In the left sidebar, click on your <strong>work calendar</strong> (your @alopex.digital email)</li>
-                                            <li>Scroll to "Share with specific people or groups"</li>
-                                            <li>Click "+ Add people and groups"</li>
-                                            <li>Enter this email: <code id="service-account-email">calendar-sync@calendar-sync-ui.iam.gserviceaccount.com</code>
-                                                <button class="btn-copy" onclick="copyServiceAccount()">Copy</button>
-                                            </li>
-                                            <li>Set permission to <strong>"Make changes and manage sharing"</strong></li>
-                                            <li>Click "Send"</li>
-                                        </ol>
-
-                                        <h4 style="margin-top: 20px;">Step 2: Then, share your personal/external calendar</h4>
-                                        <p style="margin-bottom: 10px; color: #666;">Repeat the same process for your personal calendar.</p>
-                                        <ol>
-                                            <li>Switch to your personal Google account (or open in incognito)</li>
-                                            <li>Open <a href="https://calendar.google.com/calendar/u/0/r/settings" target="_blank">Google Calendar Settings</a></li>
-                                            <li>Click on the calendar you want to sync</li>
-                                            <li>Share it with the same service account email above</li>
-                                            <li>Set permission to <strong>"Make changes and manage sharing"</strong></li>
-                                        </ol>
-
-                                        <h4 style="margin-top: 20px;">Step 3: Enter your calendar details below</h4>
+                                        <h4>Connect the calendar's Google account</h4>
+                                        <p>Click <strong>Connect with Google</strong> below, sign in with the account that owns this calendar, and click <strong>Allow</strong>. No calendar sharing needed — you may see a one-time “Google hasn’t verified this app” screen; choose <em>Advanced → Go to Alopex Calendar Sync</em>.</p>
                                     </div>
                                     <div class="form-group">
                                         <label for="calendar-email">Calendar Email/ID:</label>
@@ -125,7 +98,7 @@
                                 </div>
                                 <div class="modal-footer">
                                     <button class="btn btn-secondary modal-cancel">Cancel</button>
-                                    <button id="verify-calendar-btn" class="btn btn-primary">Verify & Add</button>
+                                    <button id="verify-calendar-btn" class="btn btn-primary">Connect with Google</button>
                                 </div>
                             </div>
                         </div>

@@ -95,7 +95,7 @@
   function initEventListeners() {                                                                                                                                                             
       elements.signOutBtn()?.addEventListener('click', handleSignOut);                                                                                                                        
       elements.addCalendarBtn()?.addEventListener('click', () => showModal('add-calendar-modal'));                                                                                            
-      elements.verifyCalendarBtn()?.addEventListener('click', handleVerifyCalendar);                                                                                                          
+      elements.verifyCalendarBtn()?.addEventListener('click', handleConnectCalendar);                                                                                                          
       elements.addRuleBtn()?.addEventListener('click', () => {                                                                                                                                
           populateRuleDropdowns();                                                                                                                                                            
           showModal('add-rule-modal');                                                                                                                                                        
@@ -214,84 +214,62 @@
       `).join('');                                                                                                                                                                            
   }                                                                                                                                                                                           
                                                                                                                                                                                               
-  async function handleVerifyCalendar() {                                                                                                                                                     
-      const email = elements.calendarEmail().value.trim();                                                                                                                                    
-      const name = elements.calendarName().value.trim();                                                                                                                                      
-                                                                                                                                                                                              
-      if (!email) {                                                                                                                                                                           
-          showToast('Please enter a calendar email', 'error');                                                                                                                                
-          return;                                                                                                                                                                             
-      }                                                                                                                                                                                       
-                                                                                                                                                                                              
-      if (!name) {                                                                                                                                                                            
-          showToast('Please enter a display name', 'error');                                                                                                                                  
-          return;                                                                                                                                                                             
-      }                                                                                                                                                                                       
-                                                                                                                                                                                              
-      if (state.calendars.some(c => c.calendar_email === email)) {                                                                                                                            
-          showToast('This calendar is already added', 'error');                                                                                                                               
-          return;                                                                                                                                                                             
-      }                                                                                                                                                                                       
-                                                                                                                                                                                              
-      showLoading('Verifying calendar access...');                                                                                                                                            
-                                                                                                                                                                                              
-      try {                                                                                                                                                                                   
-          const response = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.VERIFY_CALENDAR, {                                                                                              
-              method: 'POST',                                                                                                                                                                 
-              headers: { 'Content-Type': 'application/json' },                                                                                                                                
-              body: JSON.stringify({                                                                                                                                                          
-                  userEmail: state.user.email,                                                                                                                                                
-                  calendarEmail: email                                                                                                                                                        
-              })                                                                                                                                                                              
-          });                                                                                                                                                                                 
-                                                                                                                                                                                              
-          const result = await response.json();                                                                                                                                               
-                                                                                                                                                                                              
-          const calendar = {                                                                                                                                                                  
-              calendar_id: generateId('cal'),                                                                                                                                                 
-              calendar_email: email,                                                                                                                                                          
-              calendar_name: name,                                                                                                                                                            
-              calendar_type: 'external',                                                                                                                                                      
-              access_verified: result.success === true                                                                                                                                        
-          };                                                                                                                                                                                  
-                                                                                                                                                                                              
-          state.calendars.push(calendar);                                                                                                                                                     
-          renderCalendars();                                                                                                                                                                  
-          hideModal('add-calendar-modal');                                                                                                                                                    
-                                                                                                                                                                                              
-          elements.calendarEmail().value = '';                                                                                                                                                
-          elements.calendarName().value = '';                                                                                                                                                 
-                                                                                                                                                                                              
-          if (result.success) {                                                                                                                                                               
-              showToast(`Calendar "${name}" added and verified!`, 'success');                                                                                                                 
-          } else {                                                                                                                                                                            
-              showToast(`Calendar added but not verified. Please check sharing settings.`, 'warning');                                                                                        
-          }                                                                                                                                                                                   
-      } catch (error) {                                                                                                                                                                       
-          console.error('Verification error:', error);                                                                                                                                        
-                                                                                                                                                                                              
-          const calendar = {                                                                                                                                                                  
-              calendar_id: generateId('cal'),                                                                                                                                                 
-              calendar_email: email,                                                                                                                                                          
-              calendar_name: name,                                                                                                                                                            
-              calendar_type: 'external',                                                                                                                                                      
-              access_verified: false                                                                                                                                                          
-          };                                                                                                                                                                                  
-                                                                                                                                                                                              
-          state.calendars.push(calendar);                                                                                                                                                     
-          renderCalendars();                                                                                                                                                                  
-          hideModal('add-calendar-modal');                                                                                                                                                    
-                                                                                                                                                                                              
-          elements.calendarEmail().value = '';                                                                                                                                                
-          elements.calendarName().value = '';                                                                                                                                                 
-                                                                                                                                                                                              
-          showToast(`Calendar added. Verification will happen on first sync.`);                                                                                                               
-      } finally {                                                                                                                                                                             
-          hideLoading();                                                                                                                                                                      
-      }                                                                                                                                                                                       
-  }                                                                                                                                                                                           
-                                                                                                                                                                                              
-  function removeCalendar(calendarId) {                                                                                                                                                       
+  // ==========================================
+// OAUTH CONNECT (replaces service-account sharing)
+// ==========================================
+
+function buildAuthUrl(loginHint) {
+    const p = new URLSearchParams({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        redirect_uri: CONFIG.OAUTH.REDIRECT_URI,
+        response_type: 'code',
+        scope: CONFIG.OAUTH.SCOPES,
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true',
+        login_hint: loginHint || '',
+        state: btoa((state.user && state.user.email) || '')
+    });
+    return CONFIG.OAUTH.AUTH_URL + '?' + p.toString();
+}
+
+function openConnectPopup(loginHint) {
+    window.open(buildAuthUrl(loginHint), 'cs_connect', 'width=520,height=680');
+}
+
+// Connect the signed-in work calendar's Google account
+function connectWork() {
+    if (!state.user) { showToast('Please sign in first', 'error'); return; }
+    openConnectPopup(state.user.email);
+    showToast('Finish connecting in the Google window.', 'success');
+}
+
+// Connect an external calendar account, then add it
+function handleConnectCalendar() {
+    const email = elements.calendarEmail().value.trim();
+    const name = elements.calendarName().value.trim();
+    if (!email) { showToast('Please enter the calendar account email', 'error'); return; }
+    if (!name) { showToast('Please enter a display name', 'error'); return; }
+    if (state.calendars.some(c => c.calendar_email === email)) { showToast('This calendar is already added', 'error'); return; }
+
+    openConnectPopup(email);
+
+    // Optimistically add; the sync engine activates automatically once the token is stored.
+    state.calendars.push({
+        calendar_id: generateId('cal'),
+        calendar_email: email,
+        calendar_name: name,
+        calendar_type: 'external',
+        access_verified: false
+    });
+    renderCalendars();
+    hideModal('add-calendar-modal');
+    elements.calendarEmail().value = '';
+    elements.calendarName().value = '';
+    showToast('Finish connecting in the Google window, then click Save.', 'success');
+}
+
+function removeCalendar(calendarId) {                                                                                                                                                       
       // Track deletion for existing items (items that came from the server)                                                                                                                  
       const calendar = state.calendars.find(c => c.calendar_id === calendarId);                                                                                                               
       if (calendar && calendarId) {                                                                                                                                                           
@@ -608,14 +586,12 @@
       }, 3000);                                                                                                                                                                               
   }                                                                                                                                                                                           
                                                                                                                                                                                               
-  function copyServiceAccount() {                                                                                                                                                             
-      navigator.clipboard.writeText(CONFIG.SERVICE_ACCOUNT_EMAIL);                                                                                                                            
-      showToast('Service account email copied!', 'success');                                                                                                                                  
-  }                                                                                                                                                                                           
+  // (service-account copy removed — OAuth connect replaces manual sharing)
+                                                                                                                                                                                           
                                                                                                                                                                                               
   // Make functions available globally for onclick handlers                                                                                                                                   
   window.removeCalendar = removeCalendar;                                                                                                                                                     
   window.removeRule = removeRule;                                                                                                                                                             
   window.toggleRule = toggleRule;                                                                                                                                                             
-  window.copyServiceAccount = copyServiceAccount;                                                                                                                                             
+  window.connectWork = connectWork;                                                                                                                                             
                                                    
