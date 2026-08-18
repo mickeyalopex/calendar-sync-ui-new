@@ -250,6 +250,8 @@ async function isAccountConnected(email) {
 
 // Reflect connection state on the work calendar's Connect button
 function setWorkConnected(btn, connected) {
+    const hint = document.getElementById('work-connect-hint');
+    if (hint) hint.style.display = connected ? 'none' : '';
     if (connected) {
         btn.textContent = '\u2713 Connected';
         btn.disabled = true;
