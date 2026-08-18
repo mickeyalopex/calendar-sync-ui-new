@@ -84,16 +84,15 @@
                                 </div>
                                 <div class="modal-body">
                                     <div class="instructions">
-                                        <h4>Connect the calendar's Google account</h4>
-                                        <p>Click <strong>Connect with Google</strong> below, sign in with the account that owns this calendar, and click <strong>Allow</strong>. No calendar sharing needed — you may see a one-time “Google hasn’t verified this app” screen; choose <em>Advanced → Go to Alopex Calendar Sync</em>.</p>
+                                        <h4>Add calendars from any Google account</h4>
+                                        <ol>
+                                            <li>Enter the account's email, click <strong>Connect with Google</strong>, then <strong>sign in</strong> and <strong>Allow</strong> in the popup. <span class="hint">(A one-time “Google hasn’t verified this app” screen may appear → <em>Advanced → Go to Alopex Calendar Sync</em>. No calendar sharing needed.)</span></li>
+                                            <li>Your calendars load automatically — click <strong>Add</strong> next to each one you want to sync.</li>
+                                        </ol>
                                     </div>
                                     <div class="form-group">
-                                        <label for="calendar-email">Calendar Email/ID:</label>
-                                        <input type="email" id="calendar-email" placeholder="yourname@gmail.com">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="calendar-name">Display Name:</label>
-                                        <input type="text" id="calendar-name" placeholder="Personal">
+                                        <label for="calendar-email">Google account email</label>
+                                        <input type="email" id="calendar-email" placeholder="you@gmail.com">
                                     </div>
                                     <button id="load-calendars-btn" class="btn btn-secondary" style="width:100%;margin-top:4px">Load my calendars</button>
                                     <div id="calendar-picker" class="calendars-list" style="margin-top:12px"></div>
