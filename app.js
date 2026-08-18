@@ -161,6 +161,7 @@
       state.deletedRules = [];                                                                                                                                                                
                                                                                                                                                                                               
       loadUserConfiguration();                                                                                                                                                                
+      refreshWorkStatus();
   }                                                                                                                                                                                           
                                                                                                                                                                                               
   function handleSignOut() {                                                                                                                                                                  
