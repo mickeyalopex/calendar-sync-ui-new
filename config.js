@@ -7,7 +7,8 @@ const CONFIG = {
         SAVE_CONFIG: '/calendar-sync/save',
         VERIFY_CALENDAR: '/calendar-sync/verify',
         GET_CONFIG: '/calendar-sync/get',
-        LIST_CALENDARS: '/calendar-sync/calendars'
+        LIST_CALENDARS: '/calendar-sync/calendars',
+        CHECK_CONNECTED: '/calendar-sync/connected'
     },
     SPREADSHEET_ID: '1vs6MdV4mgIIqiuy837wNCPQzIj71MgjdvqpE0d0kego',
     OAUTH: {

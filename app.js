@@ -242,28 +242,46 @@ function openConnectPopup(loginHint) {
 // Check if an account already has a stored OAuth token
 async function isAccountConnected(email) {
     try {
-        const r = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.LIST_CALENDARS + '?account=' + encodeURIComponent(email));
+        const r = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.CHECK_CONNECTED + '?account=' + encodeURIComponent(email));
         const d = await r.json();
         return !!d.connected;
-    } catch (e) { return false; }
+    } catch (e) { return null; } // null = check failed / unknown
 }
 
 // Reflect connection state on the work calendar's Connect button
-async function refreshWorkStatus() {
-    if (!state.user) return;
-    const btn = document.getElementById('work-connect-btn');
-    if (!btn) return;
-    if (await isAccountConnected(state.user.email)) {
+function setWorkConnected(btn, connected) {
+    if (connected) {
         btn.textContent = '\u2713 Connected';
         btn.disabled = true;
-        btn.classList.remove('btn-primary');
-        btn.classList.add('btn-secondary');
+        btn.classList.remove('btn-primary', 'btn-secondary');
+        btn.style.background = '#34a853';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#34a853';
+        btn.style.opacity = '1';
     } else {
         btn.textContent = 'Connect';
         btn.disabled = false;
         btn.classList.add('btn-primary');
         btn.classList.remove('btn-secondary');
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        btn.style.opacity = '';
     }
+}
+
+async function refreshWorkStatus() {
+    if (!state.user) return;
+    const btn = document.getElementById('work-connect-btn');
+    if (!btn) return;
+    // avoid the 'Connect' flash while we check
+    if (btn.textContent !== '\u2713 Connected') { btn.textContent = 'Checking\u2026'; btn.disabled = true; }
+    const status = await isAccountConnected(state.user.email);
+    if (status === null) { // check failed - leave whatever it was, restore a usable label
+        if (btn.textContent === 'Checking\u2026') setWorkConnected(btn, false);
+        return;
+    }
+    setWorkConnected(btn, status);
 }
 
 // Poll for a token landing shortly after the user connects in the popup
