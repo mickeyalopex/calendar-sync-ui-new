@@ -256,6 +256,7 @@ function setWorkConnected(btn, connected) {
         btn.textContent = '\u2713 Connected';
         btn.disabled = true;
         btn.classList.remove('btn-primary', 'btn-secondary');
+        btn.classList.add('btn-small');
         btn.style.background = '#34a853';
         btn.style.color = '#fff';
         btn.style.borderColor = '#34a853';
@@ -264,7 +265,7 @@ function setWorkConnected(btn, connected) {
         btn.textContent = 'Connect';
         btn.disabled = false;
         btn.classList.add('btn-primary');
-        btn.classList.remove('btn-secondary');
+        btn.classList.remove('btn-secondary', 'btn-small');
         btn.style.background = '';
         btn.style.color = '';
         btn.style.borderColor = '';
