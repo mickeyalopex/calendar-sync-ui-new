@@ -94,8 +94,8 @@
                                                                                                                                                                                               
   function initEventListeners() {                                                                                                                                                             
       elements.signOutBtn()?.addEventListener('click', handleSignOut);                                                                                                                        
-      elements.addCalendarBtn()?.addEventListener('click', () => showModal('add-calendar-modal'));                                                                                            
-      elements.verifyCalendarBtn()?.addEventListener('click', handleConnectCalendar);                                                                                                          
+      elements.addCalendarBtn()?.addEventListener('click', () => openAddCalendarModal());                                                                                            
+      elements.verifyCalendarBtn()?.addEventListener('click', () => onModalPrimaryClick());                                                                                                          
       elements.addRuleBtn()?.addEventListener('click', () => {                                                                                                                                
           populateRuleDropdowns();                                                                                                                                                            
           showModal('add-rule-modal');                                                                                                                                                        
@@ -303,12 +303,35 @@ function connectWork() {
 }
 
 // Connect an external calendar account, then add it
+// Reset + open the Add External Calendar modal
+function openAddCalendarModal() {
+    setModalConnectBtn(false);
+    if (elements.calendarEmail()) elements.calendarEmail().value = '';
+    const picker = document.getElementById('calendar-picker');
+    if (picker) picker.innerHTML = '';
+    state._pickerCals = [];
+    showModal('add-calendar-modal');
+}
+
+// Footer button: 'Connect with Google' before connecting, 'Done' after
+function setModalConnectBtn(connected) {
+    state._modalConnected = connected;
+    const btn = elements.verifyCalendarBtn();
+    if (!btn) return;
+    btn.textContent = connected ? 'Done' : 'Connect with Google';
+}
+
+function onModalPrimaryClick() {
+    if (state._modalConnected) { hideModal('add-calendar-modal'); }
+    else { handleConnectCalendar(); }
+}
+
 function handleConnectCalendar() {
     const email = elements.calendarEmail().value.trim();
     if (!email) { showToast('Enter the account email first', 'error'); return; }
     openConnectPopup(email);
     showToast('Sign in and click Allow in the Google window…', 'success');
-    pollConnected(email, () => { showToast('Connected — loading your calendars…', 'success'); loadAccountCalendars(); });
+    pollConnected(email, () => { showToast('Connected — loading your calendars…', 'success'); setModalConnectBtn(true); loadAccountCalendars(); });
 }
 
 function escapeHtml(str) {
