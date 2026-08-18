@@ -305,14 +305,35 @@ function connectWork() {
 // Connect an external calendar account, then add it
 function handleConnectCalendar() {
     const email = elements.calendarEmail().value.trim();
-    const name = elements.calendarName().value.trim();
-    if (!email) { showToast('Please enter the calendar account email', 'error'); return; }
-    if (!name) { showToast('Please enter a display name', 'error'); return; }
-    if (state.calendars.some(c => c.calendar_email === email)) { showToast('This calendar is already added', 'error'); return; }
-
+    if (!email) { showToast('Enter the account email first', 'error'); return; }
     openConnectPopup(email);
-    showToast('Finish connecting in the Google window, then click “Load my calendars”.', 'success');
-    pollConnected(email, () => showToast('Account connected — click “Load my calendars”.', 'success'));
+    showToast('Sign in and click Allow in the Google window…', 'success');
+    pollConnected(email, () => { showToast('Connected — loading your calendars…', 'success'); loadAccountCalendars(); });
+}
+
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Render the picker list, marking calendars already added
+function renderPicker() {
+    const picker = document.getElementById('calendar-picker');
+    if (!picker) return;
+    const cals = state._pickerCals || [];
+    if (!cals.length) { picker.innerHTML = ''; return; }
+    picker.innerHTML = cals.map((c, i) => {
+        const added = state.calendars.some(x => x.calendar_email === c.id);
+        const badge = c.primary ? ' <span class="calendar-badge">primary</span>' : '';
+        const action = added
+            ? '<span class="calendar-badge external">✓ Added</span>'
+            : `<button class="btn btn-small btn-primary" onclick="addPickedCalendar(${i})">Add</button>`;
+        return `
+            <div class="calendar-item">
+                <span class="calendar-icon">📆</span>
+                <div style="flex:1"><span class="calendar-email">${escapeHtml(c.name)}</span>${badge}</div>
+                ${action}
+            </div>`;
+    }).join('');
 }
 
 // Load the connected account's calendars into a picker
@@ -328,12 +349,7 @@ async function loadAccountCalendars() {
         const cals = data.calendars || [];
         if (!cals.length) { picker.innerHTML = '<p class="hint">No calendars found on this account.</p>'; return; }
         state._pickerCals = cals;
-        picker.innerHTML = cals.map((c, i) => `
-            <div class="calendar-item">
-                <span class="calendar-icon">📆</span>
-                <div style="flex:1"><span class="calendar-email">${c.name}</span>${c.primary ? ' <span class="calendar-badge">primary</span>' : ''}</div>
-                <button class="btn btn-small btn-primary" onclick="addPickedCalendar(${i})">Add</button>
-            </div>`).join('');
+        renderPicker();
     } catch (e) {
         picker.innerHTML = '<p class="hint">Failed to load calendars. Try again.</p>';
     }
@@ -342,7 +358,7 @@ async function loadAccountCalendars() {
 function addPickedCalendar(i) {
     const c = (state._pickerCals || [])[i];
     if (!c) return;
-    if (state.calendars.some(x => x.calendar_email === c.id)) { showToast('Already added', 'error'); return; }
+    if (state.calendars.some(x => x.calendar_email === c.id)) { renderPicker(); return; }
     state.calendars.push({
         calendar_id: generateId('cal'),
         calendar_email: c.id,
@@ -351,6 +367,7 @@ function addPickedCalendar(i) {
         access_verified: true
     });
     renderCalendars();
+    renderPicker();
     showToast('Added “' + c.name + '”', 'success');
 }
 
