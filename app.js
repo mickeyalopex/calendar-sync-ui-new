@@ -100,7 +100,8 @@
           populateRuleDropdowns();                                                                                                                                                            
           showModal('add-rule-modal');                                                                                                                                                        
       });                                                                                                                                                                                     
-      elements.createRuleBtn()?.addEventListener('click', handleCreateRule);                                                                                                                  
+      elements.createRuleBtn()?.addEventListener('click', handleCreateRule);
+    document.getElementById('load-calendars-btn')?.addEventListener('click', loadAccountCalendars);                                                                                                                  
       elements.teamShareToggle()?.addEventListener('change', (e) => {                                                                                                                         
           state.teamShareEnabled = e.target.checked;                                                                                                                                          
       });                                                                                                                                                                                     
@@ -253,20 +254,46 @@ function handleConnectCalendar() {
     if (state.calendars.some(c => c.calendar_email === email)) { showToast('This calendar is already added', 'error'); return; }
 
     openConnectPopup(email);
+    showToast('Finish connecting in the Google window, then click “Load my calendars”.', 'success');
+}
 
-    // Optimistically add; the sync engine activates automatically once the token is stored.
+// Load the connected account's calendars into a picker
+async function loadAccountCalendars() {
+    const email = elements.calendarEmail().value.trim();
+    if (!email) { showToast('Enter the account email first', 'error'); return; }
+    const picker = document.getElementById('calendar-picker');
+    picker.innerHTML = '<p class="hint">Loading…</p>';
+    try {
+        const res = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.LIST_CALENDARS + '?account=' + encodeURIComponent(email));
+        const data = await res.json();
+        if (!data.connected) { picker.innerHTML = '<p class="hint">Not connected yet — click “Connect with Google”, finish in the popup, then Load again.</p>'; return; }
+        const cals = data.calendars || [];
+        if (!cals.length) { picker.innerHTML = '<p class="hint">No calendars found on this account.</p>'; return; }
+        state._pickerCals = cals;
+        picker.innerHTML = cals.map((c, i) => `
+            <div class="calendar-item">
+                <span class="calendar-icon">📆</span>
+                <div style="flex:1"><span class="calendar-email">${c.name}</span>${c.primary ? ' <span class="calendar-badge">primary</span>' : ''}</div>
+                <button class="btn btn-small btn-primary" onclick="addPickedCalendar(${i})">Add</button>
+            </div>`).join('');
+    } catch (e) {
+        picker.innerHTML = '<p class="hint">Failed to load calendars. Try again.</p>';
+    }
+}
+
+function addPickedCalendar(i) {
+    const c = (state._pickerCals || [])[i];
+    if (!c) return;
+    if (state.calendars.some(x => x.calendar_email === c.id)) { showToast('Already added', 'error'); return; }
     state.calendars.push({
         calendar_id: generateId('cal'),
-        calendar_email: email,
-        calendar_name: name,
+        calendar_email: c.id,
+        calendar_name: c.name,
         calendar_type: 'external',
-        access_verified: false
+        access_verified: true
     });
     renderCalendars();
-    hideModal('add-calendar-modal');
-    elements.calendarEmail().value = '';
-    elements.calendarName().value = '';
-    showToast('Finish connecting in the Google window, then click Save.', 'success');
+    showToast('Added “' + c.name + '”', 'success');
 }
 
 function removeCalendar(calendarId) {                                                                                                                                                       
@@ -593,5 +620,6 @@ function removeCalendar(calendarId) {
   window.removeCalendar = removeCalendar;                                                                                                                                                     
   window.removeRule = removeRule;                                                                                                                                                             
   window.toggleRule = toggleRule;                                                                                                                                                             
-  window.connectWork = connectWork;                                                                                                                                             
+  window.connectWork = connectWork;
+  window.addPickedCalendar = addPickedCalendar;                                                                                                                                             
                                                    
