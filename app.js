@@ -238,11 +238,49 @@ function openConnectPopup(loginHint) {
     window.open(buildAuthUrl(loginHint), 'cs_connect', 'width=520,height=680');
 }
 
+// Check if an account already has a stored OAuth token
+async function isAccountConnected(email) {
+    try {
+        const r = await fetch(CONFIG.API_BASE_URL + CONFIG.ENDPOINTS.LIST_CALENDARS + '?account=' + encodeURIComponent(email));
+        const d = await r.json();
+        return !!d.connected;
+    } catch (e) { return false; }
+}
+
+// Reflect connection state on the work calendar's Connect button
+async function refreshWorkStatus() {
+    if (!state.user) return;
+    const btn = document.getElementById('work-connect-btn');
+    if (!btn) return;
+    if (await isAccountConnected(state.user.email)) {
+        btn.textContent = '\u2713 Connected';
+        btn.disabled = true;
+        btn.classList.remove('btn-primary');
+        btn.classList.add('btn-secondary');
+    } else {
+        btn.textContent = 'Connect';
+        btn.disabled = false;
+        btn.classList.add('btn-primary');
+        btn.classList.remove('btn-secondary');
+    }
+}
+
+// Poll for a token landing shortly after the user connects in the popup
+function pollConnected(email, onConnected) {
+    let tries = 0;
+    const timer = setInterval(async () => {
+        tries++;
+        if (await isAccountConnected(email)) { clearInterval(timer); onConnected(); }
+        else if (tries >= 20) { clearInterval(timer); }
+    }, 3000);
+}
+
 // Connect the signed-in work calendar's Google account
 function connectWork() {
     if (!state.user) { showToast('Please sign in first', 'error'); return; }
     openConnectPopup(state.user.email);
     showToast('Finish connecting in the Google window.', 'success');
+    pollConnected(state.user.email, () => { refreshWorkStatus(); showToast('Work calendar connected!', 'success'); });
 }
 
 // Connect an external calendar account, then add it
@@ -255,6 +293,7 @@ function handleConnectCalendar() {
 
     openConnectPopup(email);
     showToast('Finish connecting in the Google window, then click “Load my calendars”.', 'success');
+    pollConnected(email, () => showToast('Account connected — click “Load my calendars”.', 'success'));
 }
 
 // Load the connected account's calendars into a picker
