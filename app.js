@@ -105,7 +105,15 @@
       elements.teamShareToggle()?.addEventListener('change', (e) => {                                                                                                                         
           state.teamShareEnabled = e.target.checked;                                                                                                                                          
       });                                                                                                                                                                                     
-      elements.saveBtn()?.addEventListener('click', handleSaveConfiguration);                                                                                                                 
+      elements.saveBtn()?.addEventListener('click', handleSaveConfiguration);
+
+      const td = document.getElementById('tutorial-details');
+      td?.addEventListener('toggle', () => {
+          if (td.open) {
+              const f = td.querySelector('iframe');
+              if (f && !f.src && f.dataset.src) f.src = f.dataset.src;
+          }
+      });                                                                                                                 
                                                                                                                                                                                               
       document.querySelectorAll('.modal-close, .modal-cancel').forEach(btn => {                                                                                                               
           btn.addEventListener('click', (e) => {                                                                                                                                              
