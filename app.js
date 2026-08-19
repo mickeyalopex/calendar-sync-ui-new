@@ -106,6 +106,127 @@
           state.teamShareEnabled = e.target.checked;                                                                                                                                          
       });                                                                                                                                                                                     
       elements.saveBtn()?.addEventListener('click', handleSaveConfiguration);
+      document.querySelectorAll('.modal-close, .modal-cancel').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+              const modal = e.target.closest('.modal');
+              if (modal) hideModal(modal.id);
+          });
+      });
+
+      document.querySelectorAll('.modal').forEach(modal => {
+          modal.addEventListener('click', (e) => {
+              if (e.target === modal) hideModal(modal.id);
+          });
+      });
+  }
+
+  // ==========================================
+  // AUTHENTICATION
+  // ==========================================
+
+  function handleGoogleSignIn(response) {
+      const payload = parseJwt(response.credential);
+
+      if (!payload.email.endsWith('@' + CONFIG.ALLOWED_DOMAIN)) {
+          showToast(`Only @${CONFIG.ALLOWED_DOMAIN} accounts are allowed`, 'error');
+          return;
+      }
+
+      const user = {
+          user_id: payload.sub,
+          email: payload.email,
+          name: payload.name,
+          picture: payload.picture
+      };
+
+      localStorage.setItem('calendar_sync_user', JSON.stringify(user));
+      handleUserAuthenticated(user);
+  }
+
+  function handleUserAuthenticated(user) {
+      state.user = user;
+
+      elements.stepSignin().classList.add('hidden');
+      elements.configSections().classList.remove('hidden');
+      elements.userInfo().classList.remove('hidden');
+      elements.userAvatar().src = user.picture || '';
+      elements.userName().textContent = user.name;
+      elements.workCalendarEmail().textContent = user.email;
+
+      // Initialize with empty - will be populated from server or created fresh
+      state.calendars = [];
+      state.rules = [];
+      state.deletedCalendars = [];
+      state.deletedRules = [];
+
+      loadUserConfiguration();
+      refreshWorkStatus();
+  }
+
+  function handleSignOut() {
+      state.user = null;
+      state.calendars = [];
+      state.rules = [];
+      state.deletedCalendars = [];
+      state.deletedRules = [];
+      state.teamShareEnabled = false;
+
+      localStorage.removeItem('calendar_sync_user');
+      google.accounts.id.disableAutoSelect();
+
+      elements.stepSignin().classList.remove('hidden');
+      elements.configSections().classList.add('hidden');
+      elements.userInfo().classList.add('hidden');
+
+      showToast('Signed out successfully');
+  }
+
+  // ==========================================
+  // CALENDAR MANAGEMENT
+  // ==========================================
+
+  function getCalendarById(calendarId) {
+      return state.calendars.find(c => c.calendar_id === calendarId);
+  }
+
+  function renderCalendars() {
+      const list = elements.externalCalendarsList();
+      const externalCalendars = state.calendars.filter(c => c.calendar_type === 'external');
+
+      if (externalCalendars.length === 0) {
+          list.innerHTML = '<p class="hint">No external calendars added yet.</p>';
+          return;
+      }
+
+      list.innerHTML = externalCalendars.map(cal => `
+          <div class="calendar-item" data-id="${cal.calendar_id}">
+              <span class="calendar-icon">📆</span>
+              <div style="flex: 1">
+                  <span class="calendar-email">${cal.calendar_email}</span>
+                  <span class="calendar-name"> - ${cal.calendar_name}</span>
+              </div>
+              <span class="calendar-badge ${cal.access_verified ? 'external' : 'pending'}">
+                  ${cal.access_verified ? 'Verified' : 'Pending'}
+              </span>
+              <button class="btn btn-small btn-danger" onclick="removeCalendar('${cal.calendar_id}')">
+                  Remove
+              </button>
+          </div>
+      `).join('');
+  }
+
+  function buildAuthUrl(loginHint) {
+    const p = new URLSearchParams({
+        client_id: CONFIG.GOOGLE_CLIENT_ID,
+        redirect_uri: CONFIG.OAUTH.REDIRECT_URI,
+        response_type: 'code',
+        scope: CONFIG.OAUTH.SCOPES,
+        access_type: 'offline',
+        prompt: 'consent',
+        include_granted_scopes: 'true',
+        login_hint: loginHint || '',
+        state: btoa((state.user && state.user.email) || '')
+    });
     return CONFIG.OAUTH.AUTH_URL + '?' + p.toString();
 }
 
