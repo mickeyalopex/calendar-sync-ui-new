@@ -11,13 +11,12 @@
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-      #tutorial-details > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:16px;padding:20px 24px}
-      #tutorial-details > summary::-webkit-details-marker{display:none}
-      #tutorial-details > summary h2{font-size:18px;font-weight:600;margin:0}
-      #tutorial-details[open] > summary{border-bottom:1px solid var(--border)}
+      .tutorial-link{display:flex;align-items:center;gap:16px;padding:20px 24px;cursor:pointer;text-decoration:none;color:var(--text)}
+      .tutorial-link h2{font-size:18px;font-weight:600;margin:0}
+      .tutorial-link:hover{background:var(--background)}
       .tutorial-hint{margin-left:auto;font-size:12px;color:var(--text-secondary)}
-      .tutorial-hint::after{content:"click to play"}
-      #tutorial-details[open] .tutorial-hint::after{content:"click to hide"}
+      
+      
     </style>
 </head>
 <body>
@@ -52,21 +51,13 @@
 
             <!-- Steps 2-5: Configuration (shown when authenticated) -->
             <div id="config-sections" class="hidden">
-                <!-- Step 0: Video tutorial (collapsible, click to play) -->
+                <!-- Step 0: Video tutorial (opens in a new tab) -->
                 <section id="step-tutorial" class="step">
-                    <details id="tutorial-details">
-                        <summary>
-                            <span class="step-number" style="background:var(--error)">&#9654;</span>
-                            <h2>Watch the setup tutorial</h2>
-                            <span class="tutorial-hint"></span>
-                        </summary>
-                        <div class="step-content">
-                            <div style="position:relative;padding-top:56.25%;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)">
-                                <iframe src="https://drive.google.com/file/d/1ecYR2sDGeHLA9MztK4qwPORwR36TcIVM/preview" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" allow="autoplay" allowfullscreen></iframe>
-                            </div>
-                            <p class="section-hint" style="margin-top:10px">Video not loading? <a href="https://drive.google.com/file/d/1ecYR2sDGeHLA9MztK4qwPORwR36TcIVM/view" target="_blank" rel="noopener">Open the tutorial in a new tab &#8599;</a></p>
-                        </div>
-                    </details>
+                    <a class="tutorial-link" href="https://drive.google.com/file/d/1ecYR2sDGeHLA9MztK4qwPORwR36TcIVM/view" target="_blank" rel="noopener">
+                        <span class="step-number" style="background:var(--error)">&#9654;</span>
+                        <h2>Watch the setup tutorial</h2>
+                        <span class="tutorial-hint">opens in a new tab &#8599;</span>
+                    </a>
                 </section>
 
                 <!-- Step 2: Calendars -->
@@ -238,7 +229,7 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-container"></div>
 
-    <script src="config.js?v=2"></script>
-    <script src="app.js?v=2"></script>
+    <script src="config.js?v=3"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>
