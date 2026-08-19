@@ -16,6 +16,8 @@
       #tutorial-details > summary h2{font-size:18px;font-weight:600;margin:0}
       #tutorial-details[open] > summary{border-bottom:1px solid var(--border)}
       .tutorial-hint{margin-left:auto;font-size:12px;color:var(--text-secondary)}
+      .tutorial-hint::after{content:"click to play"}
+      #tutorial-details[open] .tutorial-hint::after{content:"click to hide"}
     </style>
 </head>
 <body>
@@ -56,7 +58,7 @@
                         <summary>
                             <span class="step-number" style="background:var(--error)">&#9654;</span>
                             <h2>Watch the setup tutorial</h2>
-                            <span class="tutorial-hint">click to play</span>
+                            <span class="tutorial-hint"></span>
                         </summary>
                         <div class="step-content">
                             <div style="position:relative;padding-top:56.25%;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)">
